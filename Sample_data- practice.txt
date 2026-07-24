@@ -1,0 +1,220 @@
+
+Retail shop · SQL
+-- ============================================
+-- RETAIL SHOP DATABASE
+-- ============================================
+
+-- Drop and Create Database
+DROP DATABASE IF EXISTS retail_shop;
+CREATE DATABASE retail_shop;
+USE retail_shop;
+
+-- ============================================
+-- CREATE TABLES
+-- ============================================
+
+CREATE TABLE phone (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    brand VARCHAR(50) NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    storage VARCHAR(20) NOT NULL,
+    ram VARCHAR(20) NOT NULL,
+    color VARCHAR(30) NOT NULL,
+    processor VARCHAR(80) NOT NULL,
+    website_link VARCHAR(255)
+);
+
+CREATE TABLE laptop (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    brand VARCHAR(50) NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    storage VARCHAR(20) NOT NULL,
+    ram VARCHAR(20) NOT NULL,
+    color VARCHAR(30) NOT NULL,
+    processor VARCHAR(80) NOT NULL,
+    website_link VARCHAR(255)
+);
+
+CREATE TABLE headphone (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    brand VARCHAR(50) NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    type VARCHAR(30) NOT NULL,
+    color VARCHAR(30) NOT NULL,
+    quality VARCHAR(30) NOT NULL,
+    website_link VARCHAR(255)
+);
+
+-- ============================================
+-- INSERT INTO phone (50 items)
+-- ============================================
+
+INSERT INTO phone (name, brand, price, storage, ram, color, processor, website_link) VALUES
+('iPhone 15', 'Apple', 799.00, '128GB', '6GB', 'Black', 'A16 Bionic', 'https://www.apple.com/iphone-15/'),
+('iPhone 15 Pro', 'Apple', 999.00, '256GB', '8GB', 'Natural Titanium', 'A17 Pro', 'https://www.apple.com/iphone-15-pro/'),
+('iPhone 15 Pro Max', 'Apple', 1199.00, '512GB', '8GB', 'Blue Titanium', 'A17 Pro', 'https://www.apple.com/iphone-15-pro/'),
+('iPhone 15 Plus', 'Apple', 899.00, '256GB', '6GB', 'Pink', 'A16 Bionic', 'https://www.apple.com/iphone-15/'),
+('iPhone 14', 'Apple', 699.00, '128GB', '6GB', 'Midnight', 'A15 Bionic', 'https://www.apple.com/iphone-14/'),
+('Galaxy S24 Ultra', 'Samsung', 1299.99, '256GB', '12GB', 'Titanium Gray', 'Snapdragon 8 Gen 3', 'https://www.samsung.com/galaxy-s24-ultra/'),
+('Galaxy S24+', 'Samsung', 999.99, '256GB', '12GB', 'Cobalt Violet', 'Snapdragon 8 Gen 3', 'https://www.samsung.com/galaxy-s24/'),
+('Galaxy S24', 'Samsung', 799.99, '128GB', '8GB', 'Amber Yellow', 'Exynos 2400', 'https://www.samsung.com/galaxy-s24/'),
+('Galaxy S23 FE', 'Samsung', 599.99, '128GB', '8GB', 'Cream', 'Exynos 2200', 'https://www.samsung.com/galaxy-s23-fe/'),
+('Galaxy A54 5G', 'Samsung', 449.99, '128GB', '6GB', 'Awesome Lime', 'Exynos 1380', 'https://www.samsung.com/galaxy-a54-5g/'),
+('Galaxy A34 5G', 'Samsung', 399.99, '128GB', '6GB', 'Awesome Silver', 'Dimensity 1080', 'https://www.samsung.com/galaxy-a34-5g/'),
+('Galaxy Z Fold5', 'Samsung', 1799.99, '512GB', '12GB', 'Phantom Black', 'Snapdragon 8 Gen 2', 'https://www.samsung.com/galaxy-z-fold5/'),
+('Galaxy Z Flip5', 'Samsung', 999.99, '256GB', '8GB', 'Lavender', 'Snapdragon 8 Gen 2', 'https://www.samsung.com/galaxy-z-flip5/'),
+('Pixel 8 Pro', 'Google', 999.00, '256GB', '12GB', 'Bay', 'Tensor G3', 'https://store.google.com/pixel-8-pro/'),
+('Pixel 8', 'Google', 699.00, '128GB', '8GB', 'Rose', 'Tensor G3', 'https://store.google.com/pixel-8/'),
+('Pixel 8a', 'Google', 499.00, '128GB', '8GB', 'Aloe', 'Tensor G3', 'https://store.google.com/pixel-8a/'),
+('Pixel 7a', 'Google', 449.00, '128GB', '8GB', 'Coral', 'Tensor G2', 'https://store.google.com/pixel-7a/'),
+('OnePlus 12', 'OnePlus', 799.99, '256GB', '12GB', 'Flowy Emerald', 'Snapdragon 8 Gen 3', 'https://www.oneplus.com/oneplus-12/'),
+('OnePlus 12R', 'OnePlus', 499.99, '128GB', '8GB', 'Iron Gray', 'Snapdragon 8 Gen 2', 'https://www.oneplus.com/oneplus-12r/'),
+('OnePlus Nord CE 3', 'OnePlus', 349.99, '128GB', '8GB', 'Aqua Surge', 'Snapdragon 782G', 'https://www.oneplus.com/nord-ce-3/'),
+('OnePlus Nord N30', 'OnePlus', 299.99, '128GB', '8GB', 'Chromatic Gray', 'Snapdragon 695', 'https://www.oneplus.com/nord-n30/'),
+('Xiaomi 14 Ultra', 'Xiaomi', 1299.99, '512GB', '16GB', 'Black', 'Snapdragon 8 Gen 3', 'https://www.mi.com/xiaomi-14-ultra/'),
+('Xiaomi 14', 'Xiaomi', 899.99, '256GB', '12GB', 'Jade Green', 'Snapdragon 8 Gen 3', 'https://www.mi.com/xiaomi-14/'),
+('Redmi Note 13 Pro+', 'Xiaomi', 399.99, '256GB', '8GB', 'Midnight Black', 'Dimensity 7200 Ultra', 'https://www.mi.com/redmi-note-13-pro-plus/'),
+('Redmi Note 13', 'Xiaomi', 199.99, '128GB', '6GB', 'Mint Green', 'Snapdragon 685', 'https://www.mi.com/redmi-note-13/'),
+('POCO X6 Pro', 'Xiaomi', 299.99, '256GB', '8GB', 'Gray', 'Dimensity 8300 Ultra', 'https://www.mi.com/poco-x6-pro/'),
+('Motorola Edge 40 Pro', 'Motorola', 799.99, '256GB', '12GB', 'Interstellar Black', 'Snapdragon 8 Gen 2', 'https://www.motorola.com/edge-40-pro/'),
+('Motorola Razr 40 Ultra', 'Motorola', 999.99, '256GB', '8GB', 'Glacier Blue', 'Snapdragon 8+ Gen 1', 'https://www.motorola.com/razr-40-ultra/'),
+('Moto G84 5G', 'Motorola', 279.99, '256GB', '8GB', 'Marshmallow Blue', 'Snapdragon 695', 'https://www.motorola.com/moto-g84/'),
+('Moto G54 5G', 'Motorola', 229.99, '128GB', '8GB', 'Midnight Blue', 'Dimensity 7020', 'https://www.motorola.com/moto-g54/'),
+('Sony Xperia 1 V', 'Sony', 1399.99, '256GB', '12GB', 'Black', 'Snapdragon 8 Gen 2', 'https://www.sony.com/xperia-1-v/'),
+('Sony Xperia 5 V', 'Sony', 999.99, '128GB', '8GB', 'Platinum Silver', 'Snapdragon 8 Gen 2', 'https://www.sony.com/xperia-5-v/'),
+('Sony Xperia 10 V', 'Sony', 449.99, '128GB', '6GB', 'Lavender', 'Snapdragon 695', 'https://www.sony.com/xperia-10-v/'),
+('Nothing Phone 2', 'Nothing', 599.99, '256GB', '12GB', 'White', 'Snapdragon 8+ Gen 1', 'https://www.nothing.tech/phone-2/'),
+('Nothing Phone 1', 'Nothing', 399.99, '128GB', '8GB', 'Black', 'Snapdragon 778G+', 'https://www.nothing.tech/phone-1/'),
+('Oppo Find X7 Ultra', 'Oppo', 1299.99, '256GB', '16GB', 'Ocean Blue', 'Snapdragon 8 Gen 3', 'https://www.oppo.com/find-x7-ultra/'),
+('Oppo Reno 11 Pro', 'Oppo', 499.99, '256GB', '12GB', 'Pearl White', 'Dimensity 8200', 'https://www.oppo.com/reno-11-pro/'),
+('Oppo A78 5G', 'Oppo', 249.99, '128GB', '8GB', 'Glowing Blue', 'Dimensity 700', 'https://www.oppo.com/a78-5g/'),
+('Vivo X100 Pro', 'Vivo', 999.99, '256GB', '16GB', 'Asteroid Black', 'Dimensity 9300', 'https://www.vivo.com/x100-pro/'),
+('Vivo V29 Pro', 'Vivo', 499.99, '128GB', '8GB', 'Himalayan Blue', 'Dimensity 8200', 'https://www.vivo.com/v29-pro/'),
+('Vivo Y100', 'Vivo', 249.99, '128GB', '8GB', 'Crystal Green', 'Snapdragon 695', 'https://www.vivo.com/y100/'),
+('Realme GT 5 Pro', 'Realme', 599.99, '256GB', '12GB', 'Bright Moon', 'Snapdragon 8 Gen 3', 'https://www.realme.com/gt-5-pro/'),
+('Realme 12 Pro+', 'Realme', 399.99, '256GB', '8GB', 'Submarine Blue', 'Snapdragon 7s Gen 2', 'https://www.realme.com/12-pro-plus/'),
+('Realme Narzo 60 Pro', 'Realme', 279.99, '128GB', '8GB', 'Mars Orange', 'Dimensity 7050', 'https://www.realme.com/narzo-60-pro/'),
+('Asus ROG Phone 8 Pro', 'Asus', 1199.99, '512GB', '16GB', 'Phantom Black', 'Snapdragon 8 Gen 3', 'https://www.asus.com/rog-phone-8-pro/'),
+('Asus Zenfone 10', 'Asus', 699.99, '256GB', '8GB', 'Midnight Black', 'Snapdragon 8 Gen 2', 'https://www.asus.com/zenfone-10/'),
+('Nokia G42 5G', 'Nokia', 249.99, '128GB', '6GB', 'Purple', 'Snapdragon 480+', 'https://www.nokia.com/g42-5g/'),
+('Nokia C32', 'Nokia', 129.99, '64GB', '4GB', 'Charcoal', 'Unisoc T606', 'https://www.nokia.com/c32/'),
+('Honor Magic 6 Pro', 'Honor', 899.99, '512GB', '12GB', 'Epoxy Black', 'Snapdragon 8 Gen 3', 'https://www.honor.com/magic6-pro/'),
+('Honor 90', 'Honor', 449.99, '256GB', '8GB', 'Emerald Green', 'Snapdragon 7 Gen 1', 'https://www.honor.com/honor-90/');
+
+-- ============================================
+-- INSERT INTO laptop (50 items)
+-- ============================================
+
+INSERT INTO laptop (name, brand, price, storage, ram, color, processor, website_link) VALUES
+('MacBook Air M2', 'Apple', 1099.00, '256GB SSD', '8GB', 'Midnight', 'Apple M2', 'https://www.apple.com/macbook-air-m2/'),
+('MacBook Air M3', 'Apple', 1099.00, '256GB SSD', '8GB', 'Starlight', 'Apple M3', 'https://www.apple.com/macbook-air/'),
+('MacBook Pro 14 M3', 'Apple', 1599.00, '512GB SSD', '18GB', 'Space Black', 'Apple M3 Pro', 'https://www.apple.com/macbook-pro/'),
+('MacBook Pro 16 M3 Max', 'Apple', 2499.00, '1TB SSD', '36GB', 'Silver', 'Apple M3 Max', 'https://www.apple.com/macbook-pro/'),
+('MacBook Pro 14 M3 Pro', 'Apple', 1999.00, '512GB SSD', '18GB', 'Space Black', 'Apple M3 Pro', 'https://www.apple.com/macbook-pro/'),
+('Dell XPS 13', 'Dell', 999.99, '512GB SSD', '16GB', 'Platinum Silver', 'Intel Core Ultra 7 155H', 'https://www.dell.com/xps-13/'),
+('Dell XPS 15', 'Dell', 1299.99, '512GB SSD', '16GB', 'Platinum Silver', 'Intel Core i7-13700H', 'https://www.dell.com/xps-15/'),
+('Dell XPS 17', 'Dell', 1799.99, '1TB SSD', '32GB', 'Platinum Silver', 'Intel Core i9-13900H', 'https://www.dell.com/xps-17/'),
+('Dell Inspiron 15', 'Dell', 549.99, '256GB SSD', '8GB', 'Carbon Black', 'Intel Core i5-1235U', 'https://www.dell.com/inspiron-15/'),
+('Dell Latitude 5540', 'Dell', 1149.99, '512GB SSD', '16GB', 'Gray', 'Intel Core i7-1365U', 'https://www.dell.com/latitude-5540/'),
+('HP Spectre x360 14', 'HP', 1399.99, '1TB SSD', '16GB', 'Nightfall Black', 'Intel Core Ultra 7 155H', 'https://www.hp.com/spectre-x360-14/'),
+('HP Envy x360 15', 'HP', 899.99, '512GB SSD', '16GB', 'Natural Silver', 'AMD Ryzen 7 7730U', 'https://www.hp.com/envy-x360-15/'),
+('HP Pavilion 15', 'HP', 649.99, '512GB SSD', '8GB', 'Fog Blue', 'Intel Core i5-1335U', 'https://www.hp.com/pavilion-15/'),
+('HP EliteBook 840 G10', 'HP', 1549.99, '512GB SSD', '16GB', 'Silver', 'Intel Core i7-1365U', 'https://www.hp.com/elitebook-840/'),
+('HP Omen 16', 'HP', 1299.99, '1TB SSD', '16GB', 'Shadow Black', 'AMD Ryzen 9 7940HS', 'https://www.hp.com/omen-16/'),
+('Lenovo ThinkPad X1 Carbon Gen 11', 'Lenovo', 1449.99, '512GB SSD', '16GB', 'Black', 'Intel Core i7-1365U', 'https://www.lenovo.com/thinkpad-x1-carbon/'),
+('Lenovo ThinkPad T14s', 'Lenovo', 1199.99, '512GB SSD', '16GB', 'Thunder Black', 'AMD Ryzen 7 PRO 7840U', 'https://www.lenovo.com/thinkpad-t14s/'),
+('Lenovo IdeaPad Slim 5', 'Lenovo', 699.99, '512GB SSD', '16GB', 'Cloud Grey', 'AMD Ryzen 7 7730U', 'https://www.lenovo.com/ideapad-slim-5/'),
+('Lenovo Yoga 9i', 'Lenovo', 1599.99, '1TB SSD', '16GB', 'Oatmeal', 'Intel Core i7-1360P', 'https://www.lenovo.com/yoga-9i/'),
+('Lenovo Legion 5 Pro', 'Lenovo', 1499.99, '1TB SSD', '16GB', 'Storm Grey', 'AMD Ryzen 7 7745HX', 'https://www.lenovo.com/legion-5-pro/'),
+('Lenovo Legion 7i', 'Lenovo', 1999.99, '1TB SSD', '32GB', 'Onyx Grey', 'Intel Core i9-13900HX', 'https://www.lenovo.com/legion-7i/'),
+('Asus ZenBook 14 OLED', 'Asus', 899.99, '512GB SSD', '16GB', 'Ponder Blue', 'Intel Core Ultra 7 155H', 'https://www.asus.com/zenbook-14-oled/'),
+('Asus ROG Zephyrus G14', 'Asus', 1599.99, '1TB SSD', '16GB', 'Moonlight White', 'AMD Ryzen 9 8945HS', 'https://www.asus.com/rog-zephyrus-g14/'),
+('Asus ROG Strix G16', 'Asus', 1399.99, '1TB SSD', '16GB', 'Eclipse Gray', 'Intel Core i9-13980HX', 'https://www.asus.com/rog-strix-g16/'),
+('Asus VivoBook 15', 'Asus', 549.99, '512GB SSD', '8GB', 'Quiet Blue', 'AMD Ryzen 5 7530U', 'https://www.asus.com/vivobook-15/'),
+('Asus TUF Gaming A15', 'Asus', 1099.99, '512GB SSD', '16GB', 'Mecha Gray', 'AMD Ryzen 7 7735HS', 'https://www.asus.com/tuf-gaming-a15/'),
+('Acer Swift Go 14', 'Acer', 849.99, '512GB SSD', '16GB', 'Silver', 'Intel Core Ultra 7 155H', 'https://www.acer.com/swift-go-14/'),
+('Acer Aspire 5', 'Acer', 549.99, '512GB SSD', '8GB', 'Steel Gray', 'Intel Core i5-1335U', 'https://www.acer.com/aspire-5/'),
+('Acer Predator Helios 16', 'Acer', 1699.99, '1TB SSD', '16GB', 'Abyssal Black', 'Intel Core i9-13900HX', 'https://www.acer.com/predator-helios-16/'),
+('Acer Nitro 5', 'Acer', 899.99, '512GB SSD', '16GB', 'Obsidian Black', 'AMD Ryzen 7 7735HS', 'https://www.acer.com/nitro-5/'),
+('Acer Chromebook Spin 714', 'Acer', 729.99, '256GB SSD', '8GB', 'Steel Gray', 'Intel Core i5-1335U', 'https://www.acer.com/chromebook-spin-714/'),
+('MSI Stealth 16 Studio', 'MSI', 2199.99, '1TB SSD', '32GB', 'Star Blue', 'Intel Core i9-13900H', 'https://www.msi.com/stealth-16-studio/'),
+('MSI Creator Z16', 'MSI', 1899.99, '1TB SSD', '32GB', 'Lunar Gray', 'Intel Core i7-13700H', 'https://www.msi.com/creator-z16/'),
+('MSI Katana 15', 'MSI', 999.99, '512GB SSD', '16GB', 'Black', 'Intel Core i7-13620H', 'https://www.msi.com/katana-15/'),
+('MSI Prestige 14 Evo', 'MSI', 1099.99, '512GB SSD', '16GB', 'Urban Silver', 'Intel Core i7-1360P', 'https://www.msi.com/prestige-14-evo/'),
+('Razer Blade 14', 'Razer', 2199.99, '1TB SSD', '16GB', 'Black', 'AMD Ryzen 9 7940HS', 'https://www.razer.com/blade-14/'),
+('Razer Blade 15', 'Razer', 2499.99, '1TB SSD', '16GB', 'Black', 'Intel Core i7-13800H', 'https://www.razer.com/blade-15/'),
+('Razer Blade 18', 'Razer', 2899.99, '1TB SSD', '32GB', 'Black', 'Intel Core i9-13950HX', 'https://www.razer.com/blade-18/'),
+('Microsoft Surface Laptop 5', 'Microsoft', 999.99, '256GB SSD', '8GB', 'Sandstone', 'Intel Core i5-1235U', 'https://www.microsoft.com/surface-laptop-5/'),
+('Microsoft Surface Pro 9', 'Microsoft', 1099.99, '256GB SSD', '8GB', 'Platinum', 'Intel Core i5-1235U', 'https://www.microsoft.com/surface-pro-9/'),
+('Microsoft Surface Laptop Studio 2', 'Microsoft', 1999.99, '512GB SSD', '16GB', 'Platinum', 'Intel Core i7-13700H', 'https://www.microsoft.com/surface-laptop-studio-2/'),
+('Samsung Galaxy Book3 Pro 360', 'Samsung', 1499.99, '512GB SSD', '16GB', 'Graphite', 'Intel Core i7-1360P', 'https://www.samsung.com/galaxy-book3-pro-360/'),
+('Samsung Galaxy Book3 Ultra', 'Samsung', 2399.99, '1TB SSD', '32GB', 'Graphite', 'Intel Core i9-13900H', 'https://www.samsung.com/galaxy-book3-ultra/'),
+('Samsung Galaxy Book3 Pro', 'Samsung', 1249.99, '512GB SSD', '16GB', 'Beige', 'Intel Core i7-1360P', 'https://www.samsung.com/galaxy-book3-pro/'),
+('LG Gram 17', 'LG', 1499.99, '512GB SSD', '16GB', 'Charcoal Gray', 'Intel Core i7-1360P', 'https://www.lg.com/gram-17/'),
+('LG Gram 16', 'LG', 1399.99, '512GB SSD', '16GB', 'Obsidian Black', 'Intel Core Ultra 7 155H', 'https://www.lg.com/gram-16/'),
+('Huawei MateBook X Pro', 'Huawei', 1599.99, '1TB SSD', '16GB', 'Ink Blue', 'Intel Core i7-1360P', 'https://www.huawei.com/matebook-x-pro/'),
+('Huawei MateBook 14s', 'Huawei', 1099.99, '512GB SSD', '16GB', 'Space Gray', 'Intel Core i7-13700H', 'https://www.huawei.com/matebook-14s/'),
+('Framework Laptop 13', 'Framework', 849.00, '512GB SSD', '16GB', 'Silver', 'Intel Core i7-1360P', 'https://frame.work/laptop-13/'),
+('Framework Laptop 16', 'Framework', 1399.00, '1TB SSD', '32GB', 'Silver', 'AMD Ryzen 7 7840HS', 'https://frame.work/laptop-16/');
+
+-- ============================================
+-- INSERT INTO headphone (50 items)
+-- ============================================
+
+INSERT INTO headphone (name, brand, price, type, color, quality, website_link) VALUES
+('AirPods Pro 2', 'Apple', 249.00, 'In-Ear', 'White', 'Hi-Fi', 'https://www.apple.com/airpods-pro/'),
+('AirPods Max', 'Apple', 549.00, 'Over-Ear', 'Silver', 'Hi-Fi', 'https://www.apple.com/airpods-max/'),
+('AirPods 3rd Gen', 'Apple', 169.00, 'In-Ear', 'White', 'Standard', 'https://www.apple.com/airpods-3rd-generation/'),
+('AirPods 2nd Gen', 'Apple', 129.00, 'In-Ear', 'White', 'Standard', 'https://www.apple.com/airpods/'),
+('WH-1000XM5', 'Sony', 399.99, 'Over-Ear', 'Black', 'Hi-Res', 'https://www.sony.com/wh-1000xm5/'),
+('WH-1000XM4', 'Sony', 299.99, 'Over-Ear', 'Silver', 'Hi-Res', 'https://www.sony.com/wh-1000xm4/'),
+('WF-1000XM5', 'Sony', 299.99, 'In-Ear', 'Black', 'Hi-Res', 'https://www.sony.com/wf-1000xm5/'),
+('WF-1000XM4', 'Sony', 249.99, 'In-Ear', 'Silver', 'Hi-Res', 'https://www.sony.com/wf-1000xm4/'),
+('Sony WH-CH720N', 'Sony', 149.99, 'Over-Ear', 'Blue', 'Standard', 'https://www.sony.com/wh-ch720n/'),
+('Sony WF-C700N', 'Sony', 119.99, 'In-Ear', 'Lavender', 'Standard', 'https://www.sony.com/wf-c700n/'),
+('Bose QuietComfort Ultra', 'Bose', 429.00, 'Over-Ear', 'Black', 'Hi-Res', 'https://www.bose.com/quietcomfort-ultra/'),
+('Bose QuietComfort 45', 'Bose', 329.00, 'Over-Ear', 'White Smoke', 'Hi-Fi', 'https://www.bose.com/quietcomfort-45/'),
+('Bose QuietComfort Ultra Earbuds', 'Bose', 299.00, 'In-Ear', 'Black', 'Hi-Res', 'https://www.bose.com/quietcomfort-ultra-earbuds/'),
+('Bose QuietComfort Earbuds II', 'Bose', 249.00, 'In-Ear', 'Soapstone', 'Hi-Fi', 'https://www.bose.com/quietcomfort-earbuds-ii/'),
+('Bose Sport Earbuds', 'Bose', 149.00, 'In-Ear', 'Glacier White', 'Standard', 'https://www.bose.com/sport-earbuds/'),
+('Galaxy Buds2 Pro', 'Samsung', 229.99, 'In-Ear', 'Graphite', 'Hi-Res', 'https://www.samsung.com/galaxy-buds2-pro/'),
+('Galaxy Buds FE', 'Samsung', 99.99, 'In-Ear', 'Graphite', 'Standard', 'https://www.samsung.com/galaxy-buds-fe/'),
+('Galaxy Buds Live', 'Samsung', 149.99, 'In-Ear', 'Mystic Bronze', 'Standard', 'https://www.samsung.com/galaxy-buds-live/'),
+('Sennheiser Momentum 4', 'Sennheiser', 349.95, 'Over-Ear', 'Black', 'Hi-Res', 'https://www.sennheiser.com/momentum-4/'),
+('Sennheiser Momentum TW 3', 'Sennheiser', 279.95, 'In-Ear', 'Graphite', 'Hi-Res', 'https://www.sennheiser.com/momentum-true-wireless-3/'),
+('Sennheiser HD 660S2', 'Sennheiser', 499.95, 'Over-Ear', 'Black', 'Audiophile', 'https://www.sennheiser.com/hd-660s2/'),
+('Sennheiser HD 560S', 'Sennheiser', 199.95, 'Over-Ear', 'Black', 'Audiophile', 'https://www.sennheiser.com/hd-560s/'),
+('Sennheiser CX Plus', 'Sennheiser', 179.95, 'In-Ear', 'White', 'Hi-Fi', 'https://www.sennheiser.com/cx-plus/'),
+('JBL Tune 770NC', 'JBL', 99.95, 'Over-Ear', 'Blue', 'Standard', 'https://www.jbl.com/tune-770nc/'),
+('JBL Tune 520BT', 'JBL', 49.95, 'On-Ear', 'Purple', 'Standard', 'https://www.jbl.com/tune-520bt/'),
+('JBL Live Pro 2', 'JBL', 149.95, 'In-Ear', 'Black', 'Hi-Fi', 'https://www.jbl.com/live-pro-2/'),
+('JBL Tour One M2', 'JBL', 299.95, 'Over-Ear', 'Champagne', 'Hi-Res', 'https://www.jbl.com/tour-one-m2/'),
+('JBL Reflect Aero', 'JBL', 149.95, 'In-Ear', 'Black', 'Standard', 'https://www.jbl.com/reflect-aero/'),
+('Beats Studio Pro', 'Beats', 349.99, 'Over-Ear', 'Navy', 'Hi-Fi', 'https://www.beatsbydre.com/studio-pro/'),
+('Beats Fit Pro', 'Beats', 199.99, 'In-Ear', 'Stone Purple', 'Hi-Fi', 'https://www.beatsbydre.com/fit-pro/'),
+('Beats Solo 4', 'Beats', 199.99, 'On-Ear', 'Cloud Pink', 'Standard', 'https://www.beatsbydre.com/solo4/'),
+('Beats Studio Buds+', 'Beats', 169.99, 'In-Ear', 'Cosmic Silver', 'Hi-Fi', 'https://www.beatsbydre.com/studio-buds-plus/'),
+('Beats Solo Buds', 'Beats', 79.99, 'In-Ear', 'Transparent Red', 'Standard', 'https://www.beatsbydre.com/solo-buds/'),
+('Jabra Elite 85t', 'Jabra', 229.99, 'In-Ear', 'Gold Beige', 'Hi-Fi', 'https://www.jabra.com/elite-85t/'),
+('Jabra Elite 10', 'Jabra', 249.99, 'In-Ear', 'Titanium Black', 'Hi-Res', 'https://www.jabra.com/elite-10/'),
+('Jabra Elite 8 Active', 'Jabra', 199.99, 'In-Ear', 'Navy', 'Hi-Fi', 'https://www.jabra.com/elite-8-active/'),
+('Jabra Evolve2 75', 'Jabra', 299.99, 'Over-Ear', 'Black', 'Hi-Fi', 'https://www.jabra.com/evolve2-75/'),
+('Audio-Technica ATH-M50x', 'Audio-Technica', 149.00, 'Over-Ear', 'Black', 'Audiophile', 'https://www.audio-technica.com/ath-m50x/'),
+('Audio-Technica ATH-M20x', 'Audio-Technica', 49.00, 'Over-Ear', 'Black', 'Standard', 'https://www.audio-technica.com/ath-m20x/'),
+('Audio-Technica ATH-SR50BT', 'Audio-Technica', 199.00, 'Over-Ear', 'Gray', 'Hi-Res', 'https://www.audio-technica.com/ath-sr50bt/'),
+('Beyerdynamic DT 770 Pro', 'Beyerdynamic', 159.00, 'Over-Ear', 'Black', 'Audiophile', 'https://www.beyerdynamic.com/dt-770-pro/'),
+('Beyerdynamic DT 900 Pro X', 'Beyerdynamic', 299.00, 'Over-Ear', 'Gray', 'Audiophile', 'https://www.beyerdynamic.com/dt-900-pro-x/'),
+('Beyerdynamic Free BYRD', 'Beyerdynamic', 249.00, 'In-Ear', 'Black', 'Hi-Res', 'https://www.beyerdynamic.com/free-byrd/'),
+('Skullcandy Crusher ANC 2', 'Skullcandy', 199.99, 'Over-Ear', 'True Black', 'Hi-Fi', 'https://www.skullcandy.com/crusher-anc-2/'),
+('Skullcandy Hesh Evo', 'Skullcandy', 59.99, 'Over-Ear', 'Black', 'Standard', 'https://www.skullcandy.com/hesh-evo/'),
+('Skullcandy Dime 3', 'Skullcandy', 29.99, 'In-Ear', 'Bone', 'Standard', 'https://www.skullcandy.com/dime-3/'),
+('Anker Soundcore Liberty 4', 'Anker', 79.99, 'In-Ear', 'Black', 'Hi-Fi', 'https://www.soundcore.com/liberty-4/'),
+('Anker Soundcore Space Q45', 'Anker', 99.99, 'Over-Ear', 'Blue', 'Hi-Fi', 'https://www.soundcore.com/space-q45/'),
+('Marshall Major IV', 'Marshall', 149.99, 'On-Ear', 'Black', 'Hi-Fi', 'https://www.marshallheadphones.com/major-iv/'),
+('Marshall Monitor II ANC', 'Marshall', 319.99, 'Over-Ear', 'Black', 'Hi-Res', 'https://www.marshallheadphones.com/monitor-ii-anc/');
+
+
+Could not attach to MCP server Apify
