@@ -1,16 +1,32 @@
-# This is a sample Python script.
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import config
+from ENDPOINTS.endpoints import router as api_router
+
+allowed_origins = [
+    origin.strip()
+    for origin in getattr(config, "ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+]
+
+app = FastAPI(
+    title="Agentic SalesMan API",
+    description="Multi-agent sales assistant for phones, laptops and headphones.",
+    version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(api_router)
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+@app.get("/")
+def root():
+    return {"message": "Agentic SalesMan API is running. See /docs for the API reference."}

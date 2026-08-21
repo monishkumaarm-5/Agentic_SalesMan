@@ -1,8 +1,16 @@
 from langchain_core.prompts import PromptTemplate
-from crewai import Agent, Task, Crew
-from langchain_google_genai import ChatGoogleGenerativeAI
+from crewai import Agent, Task, Crew, LLM
 
-llm = "gemini/gemini-3.5-flash-lite"
+import config
+
+# CrewAI agents talk to Gemini through litellm, which -- for the "gemini/..."
+# model prefix -- reads GEMINI_API_KEY, not GOOGLE_API_KEY. Building the LLM
+# explicitly with api_key= sidesteps that env-var mismatch entirely instead
+# of relying on litellm picking the right variable up from the environment.
+llm = LLM(
+    model="gemini/gemini-3.5-flash-lite",
+    api_key=config.GOOGLE_API_KEY,
+)
 product_prompt = PromptTemplate.from_template("""
 You are a Senior Headphone Product Expert.
 

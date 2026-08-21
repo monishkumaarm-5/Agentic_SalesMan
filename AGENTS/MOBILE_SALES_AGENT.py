@@ -2,11 +2,18 @@ from langchain_core.prompts import PromptTemplate
 from crewai import Agent
 from crewai import Task
 from crewai import Crew
-from langchain_google_genai import ChatGoogleGenerativeAI
+from crewai import LLM
 
-llm = ChatGoogleGenerativeAI(
-        model="gemini-3.5-flash-lite"
-    )
+import config
+
+# CrewAI agents talk to Gemini through litellm, which -- for the "gemini/..."
+# model prefix -- reads GEMINI_API_KEY, not GOOGLE_API_KEY. Building the LLM
+# explicitly with api_key= sidesteps that env-var mismatch entirely instead
+# of relying on litellm picking the right variable up from the environment.
+llm = LLM(
+    model="gemini/gemini-3.5-flash-lite",
+    api_key=config.GOOGLE_API_KEY,
+)
 product_prompt = PromptTemplate.from_template("""
 You are a Senior Mobile Product Expert.
 
@@ -116,7 +123,7 @@ product_agent = Agent(
     role="Senior Smartphone Product Expert",
     goal="Recommend the best smartphone from RAG data",
     backstory="Expert in comparing smartphones using only verified product information.",
-    llm="gemini/gemini-3.5-flash-lite",
+    llm=llm,
     verbose=True
 )
 
@@ -124,7 +131,7 @@ psychology_agent = Agent(
     role="Consumer Psychologist",
     goal="Understand customer buying intent",
     backstory="Specialist in consumer psychology and purchasing behavior.",
-    llm="gemini/gemini-3.5-flash-lite",
+    llm=llm,
     verbose=True
 )
 
@@ -132,7 +139,7 @@ story_agent = Agent(
     role="Storytelling Expert",
     goal="Create emotional product stories",
     backstory="Creates engaging but truthful stories for customers.",
-    llm="gemini/gemini-3.5-flash-lite",
+    llm=llm,
     verbose=True
 )
 
@@ -140,7 +147,7 @@ sales_agent = Agent(
     role="Smartphone Sales Consultant",
     goal="Generate the final sales response",
     backstory="Combines technical knowledge with customer psychology.",
-    llm="gemini/gemini-3.5-flash-lite",
+    llm=llm,
     verbose=True
 )
 
