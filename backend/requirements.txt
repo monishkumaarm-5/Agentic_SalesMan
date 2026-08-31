@@ -1,0 +1,30 @@
+# --- Backend API ---
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+
+# --- Database / vector store ---
+sqlalchemy
+pymysql
+pandas
+langchain-chroma
+langchain-huggingface
+
+# --- LLM / agents / orchestration ---
+langchain
+langchain-core
+langchain-google-genai
+langgraph
+langgraph-checkpoint-sqlite
+crewai
+
+# --- MCP (Model Context Protocol) ---
+# Backs MCP/server.py, which exposes the product catalog tools (see
+# TOOLS/product_tools.py) to any MCP client. crewai already pulls this in
+# transitively; pinned directly here since MCP/server.py imports it too.
+mcp
+
+# --- Testing ---
+pytest
+httpx

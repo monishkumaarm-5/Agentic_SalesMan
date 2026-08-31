@@ -17,15 +17,51 @@ const SUGGESTIONS = [
   'Which phone has the best camera?',
 ]
 
+const STORAGE_KEY = 'agentic-salesman:chat-v1'
+
 function createThreadId() {
   return typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
     : `thread-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+function loadStoredChat() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || !Array.isArray(parsed.messages) || !parsed.threadId) return null
+    return parsed
+  } catch {
+    // Private browsing, storage disabled, corrupted value, etc. -- just
+    // start fresh rather than breaking the app.
+    return null
+  }
+}
+
+function saveStoredChat(threadId, messages) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ threadId, messages }))
+  } catch {
+    // Storage full/unavailable -- the chat still works, it just won't
+    // survive a refresh this time.
+  }
+}
+
+function clearStoredChat() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 function App() {
-  const [messages, setMessages] = useState([WELCOME_MESSAGE])
-  const [threadId, setThreadId] = useState(createThreadId)
+  // Lazy initializers (the () => ... form) run exactly once, on the first
+  // render, which is what makes it safe to read localStorage here rather
+  // than via a ref/effect.
+  const [messages, setMessages] = useState(() => loadStoredChat()?.messages ?? [WELCOME_MESSAGE])
+  const [threadId, setThreadId] = useState(() => loadStoredChat()?.threadId ?? createThreadId())
   const [isSending, setIsSending] = useState(false)
   const bottomRef = useRef(null)
   const nextMessageId = useRef(0)
@@ -33,6 +69,10 @@ function App() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isSending])
+
+  useEffect(() => {
+    saveStoredChat(threadId, messages)
+  }, [threadId, messages])
 
   const newMessageId = (suffix) => `${(nextMessageId.current += 1)}-${suffix}`
 
@@ -46,7 +86,14 @@ function App() {
       setThreadId(result.thread_id)
       setMessages((prev) => [
         ...prev,
-        { id: newMessageId('assistant'), role: 'assistant', content: result.answer },
+        {
+          id: newMessageId('assistant'),
+          role: 'assistant',
+          content: result.answer,
+          product: result.product,
+          candidates: result.candidates,
+          confidence: result.confidence,
+        },
       ])
     } catch (error) {
       setMessages((prev) => [
@@ -64,6 +111,7 @@ function App() {
   }
 
   const handleReset = () => {
+    clearStoredChat()
     setMessages([WELCOME_MESSAGE])
     setThreadId(createThreadId())
   }
