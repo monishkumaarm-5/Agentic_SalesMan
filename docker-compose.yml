@@ -1,0 +1,62 @@
+# docker-compose.yml — Agentic SalesMan (dev/production)
+#
+# Usage:
+#   cp backend/.env.example backend/.env   # fill in real values
+#   docker compose up --build
+#
+# This starts three services:
+#   1. mysql     — MySQL 8.0 database, pre-seeded with sample products
+#   2. backend   — FastAPI + uvicorn on port 8000
+#   3. frontend  — Vite dev server on port 5173 (proxies /api to backend)
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-changeme}
+      MYSQL_DATABASE: ${DB_NAME:-retail_shop}
+      MYSQL_USER: ${DB_USERNAME:-salesman}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/sql/sample_data_products.sql:/docker-entrypoint-initdb.d/01_seed.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-changeme}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - chroma_data:/app/WORKFLOW/chroma_db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  chroma_data:

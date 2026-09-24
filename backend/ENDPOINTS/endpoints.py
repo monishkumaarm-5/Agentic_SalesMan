@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 
 import config
 from APP.auth import require_api_key
-from DATABASE.SQL_CONNECTOR import check_mysql_connectivity
+from DATABASE.SQL_CONNECTOR import check_mysql_connectivity, list_categories
+from TOOLS.company_tools import get_company_info, list_store_locations
 from TOOLS.product_tools import ProductToolError, compare_products
 from WORKFLOW.ORCHE import ask, get_history
 from WORKFLOW.tracing import get_traces
@@ -38,13 +39,38 @@ class ChatResponse(BaseModel):
     answer: str
     context: str
     thread_id: str
+    response_type: str = Field(
+        default="normal",
+        description=(
+            "'normal' for conversational answers (greetings, general "
+            "questions, declines); 'recommendation' when the response "
+            "contains product recommendation cards in the `product` "
+            "field; 'clarification' when the assistant is asking the "
+            "customer a follow-up question instead of recommending "
+            "something -- either because the category itself was unclear, "
+            "or because the catalog/requirements were too thin to "
+            "recommend responsibly (see AGENTS/CLARIFICATION_AGENT.py). "
+            "The frontend uses this flag to decide whether to render a "
+            "plain chat bubble or the product-detail panel."
+        ),
+    )
     product: Optional[dict] = Field(
         default=None,
         description=(
-            "Structured product data (recommended_product, reason, "
-            "key_features, buy_link) extracted from the product agent's "
-            "output when available. For a multi-category answer this is a "
-            "dict keyed by category instead of a single product."
+            "`{\"top_picks\": [...]}` -- up to 3 ranked recommendation "
+            "cards built by WORKFLOW/recommendations.py from the same "
+            "scored candidates as `candidates` below. Each entry: "
+            "{rank, name, specs, scores, buy, why_this, key_features, "
+            "why_suits_you}. `specs`/`scores`/`buy` are deterministic, "
+            "straight from the catalog (never invented); `buy` carries "
+            "price/currency plus mrp/discount_percentage/units_available/"
+            "in_stock/online_link/offline_availability, each null when the "
+            "catalog doesn't track that column. `why_this`/`key_features`/"
+            "`why_suits_you` are the product agent's own narrative for "
+            "that specific product, matched back onto it by name. For a "
+            "multi-category answer this is a dict keyed by category "
+            "(e.g. {\"LAPTOP\": {\"top_picks\": [...]}}) instead of a "
+            "single top_picks list."
         ),
     )
     candidates: Optional[dict] = Field(
@@ -79,7 +105,14 @@ class HealthResponse(BaseModel):
 
 
 class CompareRequest(BaseModel):
-    category: str = Field(..., description="'phone', 'laptop' or 'headphone'")
+    category: str = Field(
+        ...,
+        description=(
+            "Any category this store's catalog currently has (see GET "
+            "/api/categories for the live list) -- e.g. 'Mobile', "
+            "'Laptop', 'Refrigerator'."
+        ),
+    )
     product_names: list[str] = Field(..., min_length=2, description="2+ exact product names")
 
 
@@ -120,25 +153,67 @@ def health():
     return HealthResponse(status=overall, checks=checks)
 
 
+@router.get("/company")
+def company():
+    """Company identity + physical store locations (task 1.3: this is a
+    company-specific app -- the assistant's own store locations and
+    website need to be discoverable on their own, not just mentioned in
+    passing inside a chat answer). Reads straight from
+    TOOLS/company_tools.py, which in turn reads config.py's
+    COMPANY_NAME/COMPANY_WEBSITE/STORE_LOCATIONS -- no auth required, same
+    reasoning as /api/health (this is public storefront information, not a
+    secret)."""
+    info = get_company_info()
+    info["stores"] = list_store_locations()
+    return info
+
+
+@router.get("/categories")
+def categories():
+    """Live list of product categories this store's catalog currently has
+    (see DATABASE/SQL_CONNECTOR.py) -- lets the frontend show real
+    category suggestions/examples instead of a hardcoded phone/laptop/
+    headphone list. No auth required, same reasoning as /api/company."""
+    return {"categories": list_categories()}
+
+
 @router.post("/chat", response_model=ChatResponse, dependencies=[auth_dep])
 def chat(payload: ChatRequest):
     thread_id = payload.thread_id or str(uuid.uuid4())
+    logger.info(
+        "POST /api/chat thread_id=%s question=%r",
+        thread_id,
+        payload.question[:200],
+    )
     try:
         result = ask(payload.question, thread_id=thread_id)
     except TimeoutError as exc:
+        logger.warning("Timeout in /api/chat thread_id=%s: %s", thread_id, exc)
         raise HTTPException(status_code=504, detail=str(exc)) from exc
     except Exception as exc:
-        logger.exception("Unhandled error in /api/chat")
+        logger.exception("Unhandled error in /api/chat thread_id=%s", thread_id)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return ChatResponse(
+    response = ChatResponse(
         answer=result["answer"],
         context=result["context"],
         thread_id=thread_id,
+        response_type=result.get("response_type", "normal"),
         product=result.get("product"),
         candidates=result.get("candidates"),
         confidence=result.get("confidence"),
     )
+    logger.info(
+        "POST /api/chat thread_id=%s response_type=%s confidence=%s "
+        "answer_len=%d has_product=%s has_candidates=%s",
+        thread_id,
+        response.response_type,
+        response.confidence,
+        len(response.answer or ""),
+        response.product is not None,
+        response.candidates is not None,
+    )
+    return response
 
 
 @router.get("/history/{thread_id}", response_model=list[HistoryTurn], dependencies=[auth_dep])
@@ -152,13 +227,27 @@ def compare(payload: CompareRequest):
     MySQL via TOOLS/product_tools.py (the same function the CrewAI product
     agent and the standalone MCP server both call). Useful on its own (fast,
     no token cost) and as the backing for a "Compare" UI action."""
+    logger.info(
+        "POST /api/compare category=%s product_names=%s",
+        payload.category,
+        payload.product_names,
+    )
     try:
-        return compare_products(payload.category, payload.product_names)
+        result = compare_products(payload.category, payload.product_names)
     except ProductToolError as exc:
+        logger.warning("Bad request in /api/compare: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Unhandled error in /api/compare")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    logger.info(
+        "POST /api/compare category=%s differing_fields=%s missing=%s",
+        payload.category,
+        result.get("differing_fields"),
+        result.get("missing"),
+    )
+    return result
 
 
 @router.get("/traces", dependencies=[auth_dep])

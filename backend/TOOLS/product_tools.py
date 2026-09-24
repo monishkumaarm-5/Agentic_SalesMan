@@ -13,14 +13,18 @@ functions with no CrewAI/MCP/LangChain imports, so they can be:
      catalog operations over the Model Context Protocol.
   3. Unit tested directly, with no LLM or MCP transport involved.
 
-The product catalog schema (see DATABASE/SQL_CONNECTOR.py's document
-builders) is intentionally treated as loosely typed: `ram`/`storage` are
-free-text like "16GB", there's no `id` column (products are addressed by
-name), and there's no dedicated inventory/rating table. Every function here
-degrades gracefully instead of raising when a column is missing --
-`check_inventory` and the "rating" contribution to recommendation scoring
-(see WORKFLOW/scoring.py) both document this as a real limitation rather
-than faking data that doesn't exist in the sample schema.
+The catalog now lives in one generic `products` table (see
+DATABASE/SQL_CONNECTOR.py) with a `category` column instead of one bespoke
+table per category. Category-specific specs (RAM/storage for a phone,
+capacity for a fridge, screen size for a TV, ...) live in a JSON
+`attributes` column, which `_load_table` flattens into ordinary DataFrame
+columns before any of the filtering/comparison logic below runs -- so that
+logic is unchanged from when this module only knew about phones, laptops
+and headphones, and works for any category without modification. Every
+function here degrades gracefully instead of raising when a column is
+missing (e.g. `check_inventory` when there's no dedicated inventory
+column), and there's still no `id`-based addressing -- products are looked
+up by name.
 """
 import difflib
 import logging
@@ -28,8 +32,9 @@ import re
 from typing import Optional
 
 import pandas as pd
+from sqlalchemy import text as sa_text
 
-from DATABASE.SQL_CONNECTOR import TABLES, build_engine
+from DATABASE.SQL_CONNECTOR import PRODUCTS_TABLE, build_engine, parse_attributes
 
 logger = logging.getLogger("agentic_salesman.tools")
 
@@ -37,32 +42,64 @@ CURRENCY = "INR"
 
 
 class ProductToolError(ValueError):
-    """Raised for caller errors (bad category, unknown product) -- never
+    """Raised for caller errors (blank category, unknown product) -- never
     for infrastructure failures, which are allowed to propagate as-is so
     callers/tests can tell the two apart."""
 
 
 def _validate_category(category: str) -> str:
-    key = (category or "").strip().lower()
-    if key not in TABLES:
-        raise ProductToolError(
-            f"Unknown category '{category}'. Expected one of: {', '.join(TABLES)}"
-        )
+    """Categories are data-driven now (whatever's in the `products` table's
+    `category` column), not a fixed enum -- so there's nothing to validate
+    against without a DB round trip. A category that simply doesn't exist
+    yet isn't a caller error; `_load_table` naturally returns an empty
+    DataFrame for it, which every function below already treats as "no
+    matches" rather than an error. The only real caller error here is an
+    empty category."""
+    key = (category or "").strip()
+    if not key:
+        raise ProductToolError("A product category is required")
     return key
 
 
+def _expand_attributes(df: pd.DataFrame) -> pd.DataFrame:
+    """Flattens the JSON `attributes` column into top-level columns (e.g.
+    `ram`, `storage`, `capacity`) so every filter/comparison below can keep
+    reading `df["ram"]` / `"ram" in df.columns` exactly like it did back
+    when `ram` was a real column on a dedicated `laptop` table. A core
+    column (name/price/brand/...) always wins over a same-named attribute
+    key, on the off chance one collides."""
+    if df.empty or "attributes" not in df.columns:
+        return df
+
+    parsed = df["attributes"].apply(parse_attributes)
+    attr_df = pd.json_normalize(parsed)
+    df = df.drop(columns=["attributes"]).reset_index(drop=True)
+
+    if not attr_df.empty:
+        attr_df = attr_df.drop(columns=[c for c in attr_df.columns if c in df.columns], errors="ignore")
+        df = pd.concat([df, attr_df.reset_index(drop=True)], axis=1)
+
+    return df
+
+
 def _load_table(category: str) -> pd.DataFrame:
-    """Loads a product table fresh from MySQL. A short-lived engine per call
-    mirrors check_mysql_connectivity()'s pattern -- these tools are called
+    """Loads every product row in one category, fresh from MySQL, with
+    `attributes` already flattened. A short-lived engine per call mirrors
+    check_mysql_connectivity()'s pattern -- these tools are called
     occasionally (a handful of times per chat turn at most), not in a hot
     loop, so pooling isn't worth the added complexity/thread-safety
     surface."""
     key = _validate_category(category)
     engine = build_engine()
     try:
-        return pd.read_sql(f"SELECT * FROM {TABLES[key]}", engine)
+        df = pd.read_sql(
+            sa_text(f"SELECT * FROM {PRODUCTS_TABLE} WHERE LOWER(category) = LOWER(:category)"),
+            engine,
+            params={"category": key},
+        )
     finally:
         engine.dispose()
+    return _expand_attributes(df)
 
 
 def parse_numeric(value) -> Optional[float]:
@@ -103,7 +140,7 @@ def _find_row(df: pd.DataFrame, product_name: str) -> Optional[pd.Series]:
 
 
 def _inventory_columns(df: pd.DataFrame) -> Optional[str]:
-    for candidate in ("stock", "quantity", "qty", "in_stock", "available"):
+    for candidate in ("stock", "quantity", "qty", "in_stock", "available", "units_available"):
         for col in df.columns:
             if col.lower() == candidate:
                 return col
@@ -113,6 +150,16 @@ def _inventory_columns(df: pd.DataFrame) -> Optional[str]:
 # ---------------------------------------------------------------------------
 # Public tools
 # ---------------------------------------------------------------------------
+def list_categories_tool(limit: int = 50) -> list:
+    """Thin, tool-friendly wrapper over DATABASE.SQL_CONNECTOR.list_categories
+    -- lets an agent discover what categories this store actually carries
+    (e.g. to answer "what do you sell?" or to correct a category name the
+    customer got slightly wrong) without importing DATABASE directly."""
+    from DATABASE.SQL_CONNECTOR import list_categories
+
+    return list_categories()[:limit]
+
+
 def search_products(
     category: str,
     max_price: Optional[float] = None,
@@ -125,7 +172,9 @@ def search_products(
     """Structured catalog search -- exact filtering on price/spec/brand
     columns, unlike the semantic search in WORKFLOW/retrieval.py. Returns a
     list of plain dicts (JSON-serializable), sorted by price ascending.
-    Every filter is optional; omitted ones are simply not applied."""
+    Every filter is optional; omitted ones are simply not applied (and
+    min_ram_gb/min_storage_gb are no-ops for a category whose attributes
+    don't include those keys -- see _expand_attributes)."""
     df = _load_table(category)
     if df.empty:
         return []
@@ -165,6 +214,22 @@ def get_product_details(category: str, product_name: str) -> Optional[dict]:
     return None if row is None else row.to_dict()
 
 
+
+# Internal-only DB columns that should never reach a customer-facing
+# comparison (currently just the numeric primary key -- it's meaningless
+# outside the database and was leaking straight into the API/UI). Every
+# other column the catalog happens to have is still shown.
+COMPARISON_EXCLUDED_FIELDS = {"id"}
+
+
+def _comparison_view(row: dict) -> dict:
+    return {
+        key: value
+        for key, value in row.items()
+        if str(key).lower() not in COMPARISON_EXCLUDED_FIELDS
+    }
+
+
 def compare_products(category: str, product_names: list) -> dict:
     """Side-by-side comparison of 2+ products in the same category. Raises
     ProductToolError (a caller error, not an infra failure) if fewer than 2
@@ -181,7 +246,7 @@ def compare_products(category: str, product_names: list) -> dict:
         if row is None:
             missing.append(name)
         else:
-            found[str(row["name"])] = row.to_dict()
+            found[str(row["name"])] = _comparison_view(row.to_dict())
 
     if len(found) < 2:
         raise ProductToolError(
@@ -205,13 +270,14 @@ def compare_products(category: str, product_names: list) -> dict:
 
 
 def check_inventory(category: str, product_name: str) -> dict:
-    """Availability check. The sample catalog has no dedicated inventory
-    table/column, so this is intentionally conservative: a product that
-    exists in the catalog is reported in_stock (True) with a note that this
-    reflects catalog presence, not a live stock count, unless the table
-    genuinely has a stock/quantity/available-style column -- in which case
-    that's used instead. Wiring a real inventory system is called out in
-    the README's Future Improvements rather than faked here."""
+    """Availability check. The sample catalog has an optional
+    units_available column but no true real-time inventory feed, so this
+    is intentionally conservative: a product that exists in the catalog is
+    reported in_stock (True) with a note that this reflects catalog
+    presence, not a live stock count, unless the table genuinely has a
+    stock/quantity/available-style column -- in which case that's used
+    instead. Wiring a real inventory system is called out in the README's
+    Future Improvements rather than faked here."""
     df = _load_table(category)
     row = _find_row(df, product_name)
     if row is None:

@@ -29,11 +29,13 @@ from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
+from TOOLS.company_tools import get_company_info, list_store_locations
 from TOOLS.product_tools import (
     check_inventory,
     compare_products,
     get_current_price,
     get_product_details,
+    list_categories_tool,
     search_products,
 )
 
@@ -42,11 +44,36 @@ logger = logging.getLogger("agentic_salesman.mcp")
 mcp = FastMCP(
     name="agentic-salesman",
     instructions=(
-        "Tools for the Agentic SalesMan product catalog (phones, laptops, "
-        "headphones). Categories are 'phone', 'laptop' or 'headphone'. "
-        "Products are addressed by name -- there is no product id."
+        "Tools for this store's product catalog and company info. The "
+        "catalog is data-driven -- call list_categories_tool to see the "
+        "categories currently carried (e.g. 'Mobile', 'Laptop', "
+        "'Refrigerator', ...) rather than assuming a fixed set. Products "
+        "are addressed by name -- there is no product id."
     ),
 )
+
+
+@mcp.tool()
+def list_categories() -> list:
+    """List every product category this store's catalog currently has
+    (e.g. 'Mobile', 'Laptop', 'Refrigerator'). Call this first if you
+    don't already know what categories exist -- the catalog is data-driven
+    and can grow over time."""
+    return list_categories_tool()
+
+
+@mcp.tool()
+def get_company_info_tool() -> dict:
+    """Get this store's brand name, tagline, website and support phone
+    number."""
+    return get_company_info()
+
+
+@mcp.tool()
+def list_store_locations_tool(city: Optional[str] = None) -> list:
+    """List this store's physical showroom locations, optionally filtered
+    by city."""
+    return list_store_locations(city)
 
 
 @mcp.tool()
@@ -59,8 +86,9 @@ def search_products_tool(
     keyword: Optional[str] = None,
     limit: int = 10,
 ) -> list:
-    """Search the product catalog with structured filters. category must be
-    one of 'phone', 'laptop', 'headphone'. All filters are optional."""
+    """Search the product catalog with structured filters. category is any
+    category this store's catalog currently has -- call list_categories to
+    see the live list. All filters are optional."""
     return search_products(
         category,
         max_price=max_price,

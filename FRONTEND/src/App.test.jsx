@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 
 vi.mock('./api.js', () => ({
   sendMessage: vi.fn(),
+  getCompanyInfo: vi.fn().mockResolvedValue(null),
 }))
 
 import { sendMessage } from './api.js'
@@ -21,7 +22,7 @@ afterEach(() => {
 describe('App', () => {
   it('shows the welcome message on first load', () => {
     render(<App />)
-    expect(screen.getByText(/Agentic SalesMan assistant/i)).toBeInTheDocument()
+    expect(screen.getByText(/Trein shopping assistant/i)).toBeInTheDocument()
   })
 
   it('sends a message and renders the assistant reply', async () => {

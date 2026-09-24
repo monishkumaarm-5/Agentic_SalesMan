@@ -23,6 +23,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 
+import config
 from WORKFLOW.retrieval import format_candidates_for_prompt
 
 logger = logging.getLogger("agentic_salesman.evaluator")
@@ -34,7 +35,9 @@ HARD_FAIL_THRESHOLD = 0.4
 
 prompt_template = PromptTemplate.from_template(
     """
-    Role: Quality evaluator for an e-commerce sales agent's response.
+    Role: Quality evaluator for {company_name}'s e-commerce sales agent
+    response -- covering any product category the catalog carries, not
+    just phones/laptops/headphones.
     Task: Score the assistant's answer against the customer's question and
     the product data it was allowed to use. Be strict about grounding --
     any price, spec or product name not present in the product data below
@@ -83,7 +86,7 @@ class Evaluation(BaseModel):
     reasons: List[str] = Field(default_factory=list)
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite")
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
 structured_llm = llm.with_structured_output(Evaluation)
 
 DIMENSIONS = (
@@ -113,6 +116,7 @@ def _call_llm(question: str, answer: str, product_data: str, requirements_text: 
             "answer": answer,
             "product_data": product_data,
             "requirements": requirements_text,
+            "company_name": getattr(config, "COMPANY_NAME", "Trein"),
         }
     )
 

@@ -1,9 +1,9 @@
-# Secrets / local config
+# ─── Secrets / local config ────────────────────────────────
 config.py
 .env
 .env.local
 
-# Python
+# ─── Python ────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -14,27 +14,32 @@ dist/
 *.egg-info/
 .eggs/
 
-# Virtual environments
+# ─── Virtual environments ──────────────────────────────────
 venv/
 env/
 ENV/
 .venv/
+.pytest_env/
 
-# IDE
+# ─── IDE ───────────────────────────────────────────────────
 .idea/
 .vscode/
 
-# Vector DB / generated data
+# ─── Vector DB / generated data ────────────────────────────
 WORKFLOW/chroma_db/
 
-# OS
+# ─── SQLite databases ─────────────────────────────────────
+*.sqlite
+*.sqlite3
+
+# ─── OS ────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# Logs
+# ─── Logs ──────────────────────────────────────────────────
 *.log
 
-# Frontend (React / Vite)
-FRONTEND/node_modules/
-FRONTEND/dist/
-FRONTEND/.vite/
+# ─── Pytest ────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage

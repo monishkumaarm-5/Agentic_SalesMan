@@ -49,6 +49,21 @@ USE_CASE_HINTS = {
     "noise cancelling": {"min_ram_gb": None, "keywords": ("anc", "noise")},
     "noise cancellation": {"min_ram_gb": None, "keywords": ("anc", "noise")},
     "camera": {"min_ram_gb": None, "keywords": ("camera", "mp", "megapixel")},
+    # Broader, category-agnostic hints -- added when the catalog grew from
+    # phones/laptops/headphones to "everything a store like this carries"
+    # (see DATABASE/SQL_CONNECTOR.py's module docstring). Deliberately still
+    # simple keyword matching, not a real spec-understanding model -- good
+    # enough to nudge scoring for appliances/TVs/etc. the same way the
+    # original entries did for electronics.
+    "energy efficient": {"min_ram_gb": None, "keywords": ("5 star", "inverter", "energy star", "bee rating")},
+    "energy saving": {"min_ram_gb": None, "keywords": ("5 star", "inverter", "energy star", "bee rating")},
+    "smart home": {"min_ram_gb": None, "keywords": ("smart", "wifi", "app control", "alexa", "google")},
+    "large family": {"min_ram_gb": None, "keywords": ("large capacity", "xl", "double door", "family size")},
+    "quiet": {"min_ram_gb": None, "keywords": ("silent", "low noise", "quiet")},
+    "portable": {"min_ram_gb": None, "keywords": ("lightweight", "compact", "portable")},
+    "big screen": {"min_ram_gb": None, "keywords": ("inch", "uhd", "4k")},
+    "fast charging": {"min_ram_gb": None, "keywords": ("fast charging", "quick charge", "turbo charge")},
+    "premium": {"min_ram_gb": None, "keywords": ("flagship", "premium")},
 }
 
 RATING_COLUMN_NAMES = ("rating", "stars", "review_score", "avg_rating")

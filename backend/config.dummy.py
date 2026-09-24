@@ -85,3 +85,48 @@ EVALUATION_MIN_SCORE = float(os.getenv("EVALUATION_MIN_SCORE", "0.6"))
 # standard decline message. Disabling this saves LLM calls at the cost of
 # occasionally surfacing a weaker first-pass answer.
 ENABLE_EVALUATOR_RETRY = os.getenv("ENABLE_EVALUATOR_RETRY", "true").lower() == "true"
+
+
+# --- Company identity (edit these for your business) ---
+# Shown in the assistant's greeting/decline messages, in CrewAI prompts, and
+# via the /api/company endpoint -- this is what makes the assistant "your"
+# store's assistant instead of a generic one. COMPANY_NAME/WEBSITE/PHONE are
+# plain strings so they're easy to override with an env var; STORE_LOCATIONS
+# is left as a Python list (like DATABASE/SQL_CONNECTOR.py's TABLES dict)
+# because structured, multi-field data doesn't fit comfortably into a single
+# env var.
+COMPANY_NAME = os.getenv("COMPANY_NAME", "Trein")
+COMPANY_TAGLINE = os.getenv(
+    "COMPANY_TAGLINE", "Every home, every device -- one store."
+)
+COMPANY_WEBSITE = os.getenv("COMPANY_WEBSITE", "https://www.trein.example.com")
+COMPANY_SUPPORT_PHONE = os.getenv("COMPANY_SUPPORT_PHONE", "1800-000-0000")
+
+# Physical showrooms the assistant can mention when it's relevant (offline
+# availability, "where can I see this in person" questions, etc via
+# TOOLS/company_tools.py). PLACEHOLDER data -- replace with your real store
+# list before this goes anywhere near real customers, same as the
+# GOOGLE_API_KEY/DB_* placeholders above.
+STORE_LOCATIONS = [
+    {
+        "name": "Trein T Nagar",
+        "city": "Chennai",
+        "address": "123 Usman Road, T Nagar, Chennai, Tamil Nadu 600017",
+        "phone": "044-4000-1000",
+        "hours": "10:00 AM - 9:00 PM, all days",
+    },
+    {
+        "name": "Trein Koramangala",
+        "city": "Bengaluru",
+        "address": "45 80 Feet Road, Koramangala, Bengaluru, Karnataka 560095",
+        "phone": "080-4000-2000",
+        "hours": "10:00 AM - 9:00 PM, all days",
+    },
+    {
+        "name": "Trein Banjara Hills",
+        "city": "Hyderabad",
+        "address": "12 Road No. 3, Banjara Hills, Hyderabad, Telangana 500034",
+        "phone": "040-4000-3000",
+        "hours": "10:00 AM - 9:00 PM, all days",
+    },
+]

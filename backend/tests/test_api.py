@@ -39,20 +39,20 @@ def test_health_does_not_require_an_api_key(monkeypatch):
 def test_chat_returns_the_agent_response():
     with patch(
         "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "MOBILE", "product": None},
+        return_value={"answer": "hi", "context": "RECOMMENDATION", "product": None},
     ):
         resp = client.post("/api/chat", json={"question": "recommend a phone"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["answer"] == "hi"
-    assert body["context"] == "MOBILE"
+    assert body["context"] == "RECOMMENDATION"
     assert "thread_id" in body
 
 
 def test_chat_reuses_the_given_thread_id():
     with patch(
         "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "MOBILE", "product": None},
+        return_value={"answer": "hi", "context": "RECOMMENDATION", "product": None},
     ) as mock_ask:
         resp = client.post("/api/chat", json={"question": "recommend a phone", "thread_id": "abc"})
     assert resp.json()["thread_id"] == "abc"
@@ -60,13 +60,36 @@ def test_chat_reuses_the_given_thread_id():
 
 
 def test_chat_surfaces_product_data():
-    product = {"recommended_product": "iPhone 14", "reason": "great value"}
+    product = {"top_picks": [{"rank": 1, "name": "iPhone 14"}]}
     with patch(
         "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "MOBILE", "product": product},
+        return_value={"answer": "hi", "context": "RECOMMENDATION", "product": product},
     ):
         resp = client.post("/api/chat", json={"question": "recommend a phone"})
     assert resp.json()["product"] == product
+
+
+def test_chat_surfaces_the_response_type():
+    with patch(
+        "ENDPOINTS.endpoints.ask",
+        return_value={
+            "answer": "What's your budget?",
+            "context": "RECOMMENDATION",
+            "response_type": "clarification",
+            "product": None,
+        },
+    ):
+        resp = client.post("/api/chat", json={"question": "I want a phone"})
+    assert resp.json()["response_type"] == "clarification"
+
+
+def test_chat_defaults_response_type_to_normal_when_omitted():
+    with patch(
+        "ENDPOINTS.endpoints.ask",
+        return_value={"answer": "hi", "context": "GREETING", "product": None},
+    ):
+        resp = client.post("/api/chat", json={"question": "hi"})
+    assert resp.json()["response_type"] == "normal"
 
 
 def test_chat_times_out_as_504():
@@ -79,7 +102,7 @@ def test_chat_requires_api_key_when_configured(monkeypatch):
     monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
     with patch(
         "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "MOBILE", "product": None},
+        return_value={"answer": "hi", "context": "RECOMMENDATION", "product": None},
     ):
         resp = client.post("/api/chat", json={"question": "hi"})
     assert resp.status_code == 401
@@ -89,7 +112,7 @@ def test_chat_accepts_the_correct_api_key(monkeypatch):
     monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
     with patch(
         "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "MOBILE", "product": None},
+        return_value={"answer": "hi", "context": "RECOMMENDATION", "product": None},
     ):
         resp = client.post(
             "/api/chat", json={"question": "hi"}, headers={"X-API-Key": "secret123"}
@@ -105,12 +128,12 @@ def test_history_endpoint_returns_turns():
 
 
 def test_chat_surfaces_candidates_and_confidence():
-    candidates = {"MOBILE": [{"name": "Pixel 9", "_scores": {"overall": 0.9}}]}
+    candidates = {"Mobile": [{"name": "Pixel 9", "_scores": {"overall": 0.9}}]}
     with patch(
         "ENDPOINTS.endpoints.ask",
         return_value={
             "answer": "hi",
-            "context": "MOBILE",
+            "context": "RECOMMENDATION",
             "product": None,
             "candidates": candidates,
             "confidence": 0.9,
@@ -161,6 +184,25 @@ def test_compare_requires_api_key_when_configured(monkeypatch):
     assert resp.status_code == 401
 
 
+def test_compare_works_for_any_catalog_category_not_just_the_old_three():
+    # Categories are data-driven now (see DATABASE/SQL_CONNECTOR.py) --
+    # /api/compare has never validated `category` against a fixed enum, it
+    # just passes it through to compare_products, so a category like
+    # "Refrigerator" needs no endpoint change to work.
+    comparison = {
+        "category": "Refrigerator",
+        "products": {"A": {"capacity": "200L"}, "B": {"capacity": "300L"}},
+        "differing_fields": ["capacity"],
+        "missing": [],
+    }
+    with patch("ENDPOINTS.endpoints.compare_products", return_value=comparison) as mock_fn:
+        resp = client.post(
+            "/api/compare", json={"category": "Refrigerator", "product_names": ["A", "B"]}
+        )
+    assert resp.status_code == 200
+    mock_fn.assert_called_once_with("Refrigerator", ["A", "B"])
+
+
 def test_traces_endpoint_returns_the_log():
     fake_traces = [{"thread_id": "abc", "question": "hi", "latency_ms": 12.3}]
     with patch("ENDPOINTS.endpoints.get_traces", return_value=fake_traces) as mock_get:
@@ -174,3 +216,55 @@ def test_traces_requires_api_key_when_configured(monkeypatch):
     monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
     resp = client.get("/api/traces")
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# /api/company and /api/categories -- task 1.3 ("show the local store and
+# company website") and task 2 (data-driven categories, no hardcoded list)
+# ---------------------------------------------------------------------------
+def test_company_endpoint_returns_info_with_store_locations():
+    fake_info = {
+        "name": "Trein",
+        "tagline": "Every home, every device -- one store.",
+        "website": "https://www.trein.example.com",
+        "support_phone": "1800-000-0000",
+        "store_count": 3,
+    }
+    fake_stores = [{"name": "Trein T Nagar", "city": "Chennai"}]
+    with patch("ENDPOINTS.endpoints.get_company_info", return_value=dict(fake_info)) as mock_info, patch(
+        "ENDPOINTS.endpoints.list_store_locations", return_value=fake_stores
+    ) as mock_stores:
+        resp = client.get("/api/company")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "Trein"
+    assert body["stores"] == fake_stores
+    mock_info.assert_called_once_with()
+    mock_stores.assert_called_once_with()
+
+
+def test_company_endpoint_does_not_require_an_api_key(monkeypatch):
+    monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
+    with patch("ENDPOINTS.endpoints.get_company_info", return_value={"name": "Trein"}), patch(
+        "ENDPOINTS.endpoints.list_store_locations", return_value=[]
+    ):
+        resp = client.get("/api/company")
+    assert resp.status_code == 200
+
+
+def test_categories_endpoint_returns_the_live_category_list():
+    with patch(
+        "ENDPOINTS.endpoints.list_categories",
+        return_value=["Mobile", "Laptop", "Refrigerator"],
+    ) as mock_fn:
+        resp = client.get("/api/categories")
+    assert resp.status_code == 200
+    assert resp.json() == {"categories": ["Mobile", "Laptop", "Refrigerator"]}
+    mock_fn.assert_called_once_with()
+
+
+def test_categories_endpoint_does_not_require_an_api_key(monkeypatch):
+    monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
+    with patch("ENDPOINTS.endpoints.list_categories", return_value=[]):
+        resp = client.get("/api/categories")
+    assert resp.status_code == 200

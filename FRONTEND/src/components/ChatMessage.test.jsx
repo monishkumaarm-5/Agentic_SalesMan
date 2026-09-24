@@ -2,6 +2,29 @@ import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import ChatMessage from './ChatMessage.jsx'
 
+function pick(overrides = {}) {
+  return {
+    rank: 1,
+    name: 'iPhone 14',
+    specs: { brand: 'Apple' },
+    scores: { overall: 0.9 },
+    buy: {
+      price: 60000,
+      currency: 'INR',
+      mrp: null,
+      discount_percentage: null,
+      units_available: null,
+      in_stock: null,
+      online_link: 'https://example.com',
+      offline_availability: null,
+    },
+    why_this: 'Great value',
+    key_features: ['A15 chip'],
+    why_suits_you: 'Fits your budget',
+    ...overrides,
+  }
+}
+
 describe('ChatMessage', () => {
   it('renders a user message as plain text', () => {
     render(<ChatMessage role="user" content="recommend a phone" />)
@@ -13,36 +36,41 @@ describe('ChatMessage', () => {
     expect(screen.getByRole('heading', { name: 'Recommended Phone' })).toBeInTheDocument()
   })
 
-  it('applies the error style and does not render a product card for error messages', () => {
+  it('applies the error style and does not render top-pick cards for error messages', () => {
     const { container } = render(
-      <ChatMessage role="assistant" content="Something went wrong" isError product={{ recommended_product: 'X' }} />
-    )
-    expect(container.querySelector('.bubble.error')).toBeInTheDocument()
-    expect(container.querySelector('.product-card')).not.toBeInTheDocument()
-  })
-
-  it('renders a product card for a single-category product', () => {
-    render(
       <ChatMessage
         role="assistant"
-        content="Here you go"
-        product={{ recommended_product: 'iPhone 14', reason: 'Great value', key_features: ['A15 chip'], buy_link: 'https://example.com' }}
+        content="Something went wrong"
+        isError
+        product={{ top_picks: [pick()] }}
       />
+    )
+    expect(container.querySelector('.bubble.error')).toBeInTheDocument()
+    expect(container.querySelector('.top-pick')).not.toBeInTheDocument()
+  })
+
+  it('renders the why-this / key-features / buy-now cards for a single-category product', () => {
+    render(
+      <ChatMessage role="assistant" content="Here you go" product={{ top_picks: [pick()] }} />
     )
     expect(screen.getByText('iPhone 14')).toBeInTheDocument()
     expect(screen.getByText('Great value')).toBeInTheDocument()
+    expect(screen.getByText('Fits your budget')).toBeInTheDocument()
     expect(screen.getByText('A15 chip')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /buy now/i })).toHaveAttribute('href', 'https://example.com')
+    expect(screen.getByRole('link', { name: /buy online/i })).toHaveAttribute(
+      'href',
+      'https://example.com'
+    )
   })
 
-  it('renders one card per category for a multi-category product', () => {
+  it('renders one set of cards per category for a multi-category product', () => {
     render(
       <ChatMessage
         role="assistant"
         content="Here you go"
         product={{
-          MOBILE: { recommended_product: 'iPhone 14' },
-          HEADPHONE: { recommended_product: 'SoundMax 200' },
+          MOBILE: { top_picks: [pick({ name: 'iPhone 14' })] },
+          HEADPHONE: { top_picks: [pick({ name: 'SoundMax 200', why_this: 'Great sound' })] },
         }}
       />
     )
@@ -52,7 +80,7 @@ describe('ChatMessage', () => {
 
   it('renders nothing extra when product is null', () => {
     const { container } = render(<ChatMessage role="assistant" content="hi" product={null} />)
-    expect(container.querySelector('.product-card')).not.toBeInTheDocument()
+    expect(container.querySelector('.top-pick')).not.toBeInTheDocument()
   })
 
   it('renders a confidence badge when confidence is present', () => {

@@ -1,6 +1,172 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#5b5bd6"/>
-  <path d="M9 21.5V12a2 2 0 0 1 2-2h5.5L23 15.5V20a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/>
-  <circle cx="13.2" cy="17.2" r="1.15" fill="#fff"/>
-  <circle cx="18.8" cy="17.2" r="1.15" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Chat logo">
+  <defs>
+    <!-- ── Base tile: mint → emerald → deep jade ── -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#6ee7b7"/>
+      <stop offset="45%"  stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#065f46"/>
+    </linearGradient>
+
+    <!-- ── Champagne gold accent (smile, clasp, rim) ── -->
+    <linearGradient id="champagne" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#fff5db"/>
+      <stop offset="55%"  stop-color="#f0d9a0"/>
+      <stop offset="100%" stop-color="#c9a266"/>
+    </linearGradient>
+
+    <!-- ── Glass sheen across the top ── -->
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.40"/>
+      <stop offset="55%"  stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- ── Case lid (lighter panel) ── -->
+    <linearGradient id="caseTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.26"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.08"/>
+    </linearGradient>
+
+    <!-- ── Case body (translucent) ── -->
+    <linearGradient id="caseBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.02"/>
+    </linearGradient>
+
+    <!-- ── Handle edge-light ── -->
+    <linearGradient id="handleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="50%"  stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.55"/>
+    </linearGradient>
+
+    <!-- ── Border stroke ── -->
+    <linearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.60"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.10"/>
+    </linearGradient>
+
+    <!-- ── Soft outer glow for champagne details ── -->
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.9" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- ── Clip ambient glows to the rounded tile ── -->
+    <clipPath id="tileClip">
+      <rect x="0" y="0" width="32" height="32" rx="8" ry="8"/>
+    </clipPath>
+  </defs>
+
+  <!-- ═══════════════ BASE TILE ═══════════════ -->
+  <g clip-path="url(#tileClip)">
+    <rect x="0" y="0" width="32" height="32" fill="url(#bgGrad)"/>
+
+    <!-- Mint halo — top-left -->
+    <circle cx="6" cy="6" r="14"
+            fill="#a7f3d0" opacity="0.45"
+            style="filter: blur(6px)"/>
+
+    <!-- Champagne ember — bottom-right -->
+    <circle cx="28" cy="28" r="12"
+            fill="#f0d9a0" opacity="0.28"
+            style="filter: blur(7px)"/>
+
+    <!-- Teal micro-spark — top-right for freshness -->
+    <circle cx="26" cy="6" r="7"
+            fill="#5eead4" opacity="0.22"
+            style="filter: blur(5px)"/>
+
+    <!-- Glass sheen over the top half -->
+    <rect x="0" y="0" width="32" height="18" fill="url(#sheen)"/>
+
+    <!-- Faint diagonal sparkle -->
+    <path d="M -4 14 L 36 0 L 36 6 L -4 20 Z"
+          fill="#ffffff" opacity="0.07"/>
+  </g>
+
+  <!-- ═══════════════ BRIEFCASE — BODY ═══════════════ -->
+  <path d="M10 10.5
+           L7.5 13.5
+           V23.5
+           a2.2 2.2 0 0 0 2.2 2.2
+           h12.6
+           a2.2 2.2 0 0 0 2.2 -2.2
+           V13.5
+           L22 10.5 Z"
+        fill="url(#caseBody)"
+        stroke="url(#borderGrad)"
+        stroke-width="0.9"
+        stroke-linejoin="round"
+        stroke-linecap="round"/>
+
+  <!-- Top lid panel -->
+  <path d="M10 10.5
+           L7.5 13.5
+           H24.5
+           L22 10.5 Z"
+        fill="url(#caseTop)"
+        stroke="url(#borderGrad)"
+        stroke-width="0.7"
+        stroke-linejoin="round"/>
+
+  <!-- ═══════════════ BRIEFCASE — HANDLE ═══════════════ -->
+  <path d="M13 10.5
+           V9.6
+           a1.6 1.6 0 0 1 1.6 -1.6
+           h2.8
+           a1.6 1.6 0 0 1 1.6 1.6
+           V10.5"
+        fill="none"
+        stroke="url(#handleGrad)"
+        stroke-width="1.3"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- ═══════════════ LID SEAM ═══════════════ -->
+  <line x1="7.5" y1="13.5"
+        x2="24.5" y2="13.5"
+        stroke="#ffffff" stroke-opacity="0.72"
+        stroke-width="0.9" stroke-linecap="round"/>
+
+  <line x1="8.2" y1="12.9"
+        x2="23.8" y2="12.9"
+        stroke="#ffffff" stroke-opacity="0.22"
+        stroke-width="0.6" stroke-linecap="round"/>
+
+  <!-- ═══════════════ LOCK / CLASP ═══════════════ -->
+  <rect x="14.6" y="12.6"
+        width="2.8" height="1.8"
+        rx="0.55" ry="0.55"
+        fill="url(#champagne)"
+        stroke="#ffffff" stroke-opacity="0.40"
+        stroke-width="0.4"/>
+
+  <circle cx="15.2" cy="13.3" r="0.35"
+          fill="#ffffff" fill-opacity="0.9"/>
+
+  <!-- ═══════════════ SMILE ═══════════════ -->
+  <path d="M14 18.2
+           a2.4 2.4 0 0 0 4 0"
+        fill="none"
+        stroke="url(#champagne)"
+        stroke-width="1.4"
+        stroke-linecap="round"
+        filter="url(#glow)"/>
+
+  <!-- ═══════════════ RIM LIGHTS ═══════════════ -->
+  <path d="M2.5 8
+           a6 6 0 0 1 5 -5.5"
+        fill="none"
+        stroke="#a7f3d0" stroke-opacity="0.60"
+        stroke-width="0.9" stroke-linecap="round"/>
+
+  <path d="M29.5 24
+           a6 6 0 0 1 -5 5.5"
+        fill="none"
+        stroke="#f0d9a0" stroke-opacity="0.30"
+        stroke-width="0.8" stroke-linecap="round"/>
 </svg>

@@ -1,162 +1,176 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useMemo, memo } from 'react'
 import ChatMessage from './components/ChatMessage.jsx'
 import ChatInput from './components/ChatInput.jsx'
-import { sendMessage } from './api.js'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
+import { useChat } from './hooks/useChat.js'
+import { useScrollToBottom } from './hooks/useScrollToBottom.js'
 import './App.css'
 
-const WELCOME_MESSAGE = {
-  id: 'welcome',
-  role: 'assistant',
-  content:
-    "Hi! I'm your Agentic SalesMan assistant. Ask me about **phones**, **laptops** or **headphones** and I'll recommend the best match.",
-}
+/* ── Suggested prompts ────────────────────────────────── */
 
 const SUGGESTIONS = [
-  'Recommend a laptop for coding under $1500',
+  'Recommend a laptop for coding under ₹1,20,000',
   'Best noise-cancelling headphones',
   'Which phone has the best camera?',
+  'Suggest a refrigerator for a family of four',
+  'What TV is best for gaming?',
 ]
 
-const STORAGE_KEY = 'agentic-salesman:chat-v1'
+/* ── Icon components (pure, memoised) ─────────────────── */
 
-function createThreadId() {
-  return typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `thread-${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
+const ShoppingBagIcon = memo(function ShoppingBagIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <path d="M16 10a4 4 0 01-8 0" />
+    </svg>
+  )
+})
 
-function loadStoredChat() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (!parsed || !Array.isArray(parsed.messages) || !parsed.threadId) return null
-    return parsed
-  } catch {
-    // Private browsing, storage disabled, corrupted value, etc. -- just
-    // start fresh rather than breaking the app.
-    return null
-  }
-}
+const PlusIcon = memo(function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" focusable="false">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+})
 
-function saveStoredChat(threadId, messages) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ threadId, messages }))
-  } catch {
-    // Storage full/unavailable -- the chat still works, it just won't
-    // survive a refresh this time.
-  }
-}
+const SendIcon = memo(function SendIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  )
+})
 
-function clearStoredChat() {
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // ignore
-  }
-}
+/* ── Suggestion strip ─────────────────────────────────── */
+
+const SuggestionStrip = memo(function SuggestionStrip({ onSend }) {
+  return (
+    <div className="suggestions" role="region" aria-label="Suggested prompts">
+      {SUGGESTIONS.map((suggestion) => (
+        <button key={suggestion} type="button" onClick={() => onSend(suggestion)}>
+          {suggestion}
+        </button>
+      ))}
+    </div>
+  )
+})
+
+/* ── Typing indicator ─────────────────────────────────── */
+
+const TypingIndicator = memo(function TypingIndicator() {
+  return (
+    <div className="message-row from-assistant" aria-live="polite" aria-label="Assistant is typing">
+      <div className="avatar assistant" aria-hidden="true">AI</div>
+      <div className="bubble typing">
+        <span className="dot" />
+        <span className="dot" />
+        <span className="dot" />
+      </div>
+    </div>
+  )
+})
+
+/* ── Brand footer ─────────────────────────────────────── */
+
+const BrandFooter = memo(function BrandFooter({ companyInfo, uniqueCities }) {
+  if (!companyInfo) return null
+
+  return (
+    <div className="brand-footer">
+      <span className="brand-footer-name">{companyInfo.name}</span>
+      {companyInfo.website && (
+        <a
+          className="brand-footer-link"
+          href={companyInfo.website}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {companyInfo.website.replace(/^https?:\/\//, '')}
+        </a>
+      )}
+      {Array.isArray(companyInfo.stores) && companyInfo.stores.length > 0 && (
+        <span className="brand-footer-stores">
+          {companyInfo.stores.length} store{companyInfo.stores.length === 1 ? '' : 's'} &middot; {uniqueCities}
+        </span>
+      )}
+    </div>
+  )
+})
+
+/* ── App ──────────────────────────────────────────────── */
 
 function App() {
-  // Lazy initializers (the () => ... form) run exactly once, on the first
-  // render, which is what makes it safe to read localStorage here rather
-  // than via a ref/effect.
-  const [messages, setMessages] = useState(() => loadStoredChat()?.messages ?? [WELCOME_MESSAGE])
-  const [threadId, setThreadId] = useState(() => loadStoredChat()?.threadId ?? createThreadId())
-  const [isSending, setIsSending] = useState(false)
-  const bottomRef = useRef(null)
-  const nextMessageId = useRef(0)
+  const { messages, isSending, companyInfo, sendMessage, resetChat, companyName } = useChat()
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isSending])
+  const bottomRef = useScrollToBottom([messages, isSending])
 
-  useEffect(() => {
-    saveStoredChat(threadId, messages)
-  }, [threadId, messages])
+  const handleSend = useCallback(
+    (question) => sendMessage(question),
+    [sendMessage],
+  )
 
-  const newMessageId = (suffix) => `${(nextMessageId.current += 1)}-${suffix}`
-
-  const handleSend = async (question) => {
-    const userMessage = { id: newMessageId('user'), role: 'user', content: question }
-    setMessages((prev) => [...prev, userMessage])
-    setIsSending(true)
-
-    try {
-      const result = await sendMessage(question, threadId)
-      setThreadId(result.thread_id)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: newMessageId('assistant'),
-          role: 'assistant',
-          content: result.answer,
-          product: result.product,
-          candidates: result.candidates,
-          confidence: result.confidence,
-        },
-      ])
-    } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: newMessageId('error'),
-          role: 'assistant',
-          content: `Something went wrong: ${error.message}`,
-          isError: true,
-        },
-      ])
-    } finally {
-      setIsSending(false)
-    }
-  }
-
-  const handleReset = () => {
-    clearStoredChat()
-    setMessages([WELCOME_MESSAGE])
-    setThreadId(createThreadId())
-  }
+  const uniqueCities = useMemo(() => {
+    if (!Array.isArray(companyInfo?.stores)) return ''
+    return [...new Set(companyInfo.stores.map((s) => s.city).filter(Boolean))].join(', ')
+  }, [companyInfo])
 
   return (
     <div className="app-shell">
+      {/* Skip link for keyboard users */}
+      <a href="#chat-main" className="sr-only sr-only-focusable">
+        Skip to chat
+      </a>
+
       <header className="app-header">
-        <div>
-          <h1>Agentic SalesMan</h1>
-          <p>Your multi-agent shopping assistant for phones, laptops &amp; headphones</p>
+        <div className="header-brand">
+          <div className="header-logo">
+            <ShoppingBagIcon />
+          </div>
+          <div className="header-text">
+            <h1>{companyName}</h1>
+            <p>{companyInfo?.tagline || 'AI Shopping Assistant'}</p>
+          </div>
         </div>
-        <button type="button" className="reset-button" onClick={handleReset}>
-          New conversation
-        </button>
+        <div className="header-actions">
+          <button
+            type="button"
+            className="reset-button"
+            onClick={resetChat}
+            aria-label="Start a new chat thread"
+          >
+            <PlusIcon />
+            New chat
+          </button>
+        </div>
       </header>
 
-      <main className="chat-window">
-        {messages.map((message) => (
-          <ChatMessage key={message.id} {...message} />
-        ))}
-        {isSending && (
-          <div className="message-row from-assistant">
-            <div className="avatar assistant">AI</div>
-            <div className="bubble typing">
-              <span className="dot" />
-              <span className="dot" />
-              <span className="dot" />
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </main>
-
-      {messages.length <= 1 && (
-        <div className="suggestions">
-          {SUGGESTIONS.map((suggestion) => (
-            <button key={suggestion} type="button" onClick={() => handleSend(suggestion)}>
-              {suggestion}
-            </button>
+      <ErrorBoundary>
+        <main
+          id="chat-main"
+          className="chat-window"
+          aria-label="Chat conversation history"
+          tabIndex={0}
+        >
+          {messages.map((message) => (
+            <ChatMessage key={message.id} {...message} />
           ))}
-        </div>
-      )}
+
+          {isSending && <TypingIndicator />}
+
+          <div ref={bottomRef} />
+        </main>
+      </ErrorBoundary>
+
+      {messages.length <= 1 && <SuggestionStrip onSend={handleSend} />}
 
       <footer className="app-footer">
-        <ChatInput onSend={handleSend} disabled={isSending} />
+        <ChatInput onSend={handleSend} disabled={isSending} SendIcon={SendIcon} />
+        <BrandFooter companyInfo={companyInfo} uniqueCities={uniqueCities} />
       </footer>
     </div>
   )

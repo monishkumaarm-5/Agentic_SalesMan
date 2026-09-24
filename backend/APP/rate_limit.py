@@ -48,4 +48,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
             hits.append(now)
 
+            # Periodically prune IPs whose windows have fully expired so the
+            # dict doesn't grow without bound as new clients come and go.
+            if len(self._hits) > 500:
+                stale = [ip for ip, q in self._hits.items() if not q]
+                for ip in stale:
+                    del self._hits[ip]
+
         return await call_next(request)

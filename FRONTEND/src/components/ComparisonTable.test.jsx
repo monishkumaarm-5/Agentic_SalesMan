@@ -31,8 +31,26 @@ describe('ComparisonTable', () => {
     )
     expect(screen.getByText('Lenovo LOQ')).toBeInTheDocument()
     expect(screen.getByText('HP Pavilion')).toBeInTheDocument()
-    expect(screen.getByText('72999')).toBeInTheDocument()
-    expect(screen.getByText('55000')).toBeInTheDocument()
+    expect(screen.getByText('₹72,999')).toBeInTheDocument()
+    expect(screen.getByText('₹55,000')).toBeInTheDocument()
+  })
+
+  it('hides the internal id field and gives friendly labels', () => {
+    render(
+      <ComparisonTable
+        comparison={{
+          products: {
+            A: { price: 1000, brand: 'Acme' },
+            B: { price: 2000, brand: 'Zeta' },
+          },
+          differing_fields: ['price', 'brand'],
+          missing: [],
+        }}
+      />
+    )
+    expect(screen.getByText('Price')).toBeInTheDocument()
+    expect(screen.getByText('Brand')).toBeInTheDocument()
+    expect(screen.queryByText('id')).not.toBeInTheDocument()
   })
 
   it('marks differing fields', () => {

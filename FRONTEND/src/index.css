@@ -1,55 +1,192 @@
-:root {
-  color-scheme: light dark;
-  --bg: #f5f6fb;
-  --surface: #ffffff;
-  --border: #e2e4ec;
-  --text: #1f2330;
-  --text-muted: #6b7280;
-  --accent: #5b5bd6;
-  --accent-contrast: #ffffff;
-  --user-bubble: #5b5bd6;
-  --user-bubble-text: #ffffff;
-  --assistant-bubble: #ffffff;
-  --error-bubble: #fdecec;
-  --error-text: #b3261e;
-  --shadow: 0 2px 10px rgba(15, 15, 40, 0.06);
-  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
-}
+/* index.css — Global reset + design tokens (Emerald & Champagne)
+   ───────────────────────────────────────────────────────────── */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1117;
-    --surface: #171923;
-    --border: #262a38;
-    --text: #e7e8ee;
-    --text-muted: #9aa0ae;
-    --accent: #8b8bf0;
-    --accent-contrast: #12131a;
-    --user-bubble: #5b5bd6;
-    --user-bubble-text: #ffffff;
-    --assistant-bubble: #1e2130;
-    --error-bubble: #3a1f22;
-    --error-text: #ff8a80;
-    --shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-  }
-}
-
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
+html,
+body,
+#root {
+  height: 100%;
 }
 
-#root {
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+:root {
+  /* Backgrounds */
+  --bg-void: #05070a;
+  --bg-deep: #0a0f14;
+
+  /* Emerald accents */
+  --accent-primary: #10b981;
+  --accent-bright:  #34d399;
+  --accent-soft:    #6ee7b7;
+  --accent-deep:    #065f46;
+
+  /* Champagne accents */
+  --amber-primary:  #f0d9a0;
+  --amber-bright:   #fff5db;
+  --amber-deep:     #c9a266;
+  --amber-glow:     rgba(240, 217, 160, 0.28);
+
+  /* Surfaces */
+  --surface-glass:     rgba(10, 15, 20, 0.72);
+  --surface-card:      rgba(255, 255, 255, 0.035);
+  --surface-hover:     rgba(255, 255, 255, 0.075);
+  --assistant-bubble:  rgba(255, 255, 255, 0.045);
+
+  /* Borders */
+  --border-subtle:     rgba(255, 255, 255, 0.07);
+  --border-light:      rgba(255, 255, 255, 0.11);
+  --border-highlight:  rgba(255, 255, 255, 0.18);
+  --border-amber:      rgba(240, 217, 160, 0.34);
+  --border-emerald:    rgba(16, 185, 129, 0.32);
+
+  /* Text */
+  --text-main:      #f3f1ec;
+  --text-secondary: #a9a7b6;
+  --text-muted:     #6f6d7e;
+
+  /* Radii */
+  --radius-sm:   10px;
+  --radius-md:   14px;
+  --radius-lg:   18px;
+  --radius-full: 999px;
+
+  /* Shadows */
+  --shadow-amber:   0 0 22px rgba(240, 217, 160, 0.18);
+  --shadow-emerald: 0 6px 24px rgba(16, 185, 129, 0.32);
+
+  /* Motion */
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg-void);
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 button {
   font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ─── Screen-reader-only utility ─────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Visible on focus (skip link) */
+.sr-only-focusable:focus {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 9999;
+  width: auto;
+  height: auto;
+  padding: 8px 16px;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  background: var(--accent-primary);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* ─── Loading text (Suspense fallback) ───────────────── */
+.loading-text {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 12px 0;
+}
+
+/* ─── Error boundary ─────────────────────────────────── */
+.error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  min-height: 200px;
+}
+
+.error-boundary-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.error-boundary-message {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  max-width: 42ch;
+}
+
+.error-boundary-details {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  max-width: 60ch;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-boundary-button {
+  margin-top: 8px;
+  padding: 10px 22px;
+  border-radius: var(--radius-full);
+  background: var(--accent-primary);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s var(--ease-premium);
+}
+
+.error-boundary-button:hover {
+  background: var(--accent-bright);
+  transform: translateY(-1px);
+}
+
+.error-boundary-button:active {
+  transform: translateY(0) scale(0.97);
 }

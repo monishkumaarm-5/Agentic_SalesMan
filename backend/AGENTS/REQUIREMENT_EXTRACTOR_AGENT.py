@@ -18,12 +18,16 @@ from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 
+import config
+
 logger = logging.getLogger("agentic_salesman.requirements")
 
 prompt_template = PromptTemplate.from_template(
     """
-    Role: Requirement Extraction Assistant supporting an e-commerce sales
-    agent for phones, laptops and headphones.
+    Role: Requirement Extraction Assistant supporting {company_name}'s
+    e-commerce sales agent, which now covers every category {company_name}
+    sells (not just phones/laptops/headphones -- see
+    DATABASE/SQL_CONNECTOR.py for the live catalog).
     Task: Read the conversation and extract structured shopping
     requirements. Do not answer the customer -- only extract requirements.
 
@@ -60,7 +64,7 @@ class Requirements(BaseModel):
     brand: Optional[str] = None
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite")
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
 structured_llm = llm.with_structured_output(Requirements)
 
 EMPTY_REQUIREMENTS = {"budget_max": None, "use_cases": [], "brand": None}
@@ -71,7 +75,13 @@ def _call_llm(question: str, context: str) -> Requirements:
     tests/test_requirement_extractor.py) without needing a real LangChain
     Runnable chain in place of the LLM."""
     chain = prompt_template | structured_llm
-    return chain.invoke({"question": question, "context": context})
+    return chain.invoke(
+        {
+            "question": question,
+            "context": context,
+            "company_name": getattr(config, "COMPANY_NAME", "Trein"),
+        }
+    )
 
 
 def extract_requirements(question: str, context: str = "") -> dict:

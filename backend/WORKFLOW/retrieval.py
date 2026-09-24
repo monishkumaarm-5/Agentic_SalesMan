@@ -1,15 +1,22 @@
 """
-Hybrid retrieval: combines the Chroma semantic search that already existed
-(WORKFLOW/ORCHE.py used to call `db.similarity_search(query, k=3)` directly
-and hand the raw text to the CrewAI product agent) with the structured
-requirements extracted from the conversation (AGENTS/REQUIREMENT_EXTRACTOR_AGENT.py)
-and the recommendation scoring engine (WORKFLOW/scoring.py), so the product
-agent gets a ranked, explainable shortlist instead of "whatever's
-semantically closest."
+Hybrid retrieval: combines Chroma semantic search with the structured
+requirements extracted from the conversation
+(AGENTS/REQUIREMENT_EXTRACTOR_AGENT.py) and the recommendation scoring
+engine (WORKFLOW/scoring.py), so the product agent gets a ranked,
+explainable shortlist instead of "whatever's semantically closest."
+
+The catalog now lives in one shared Chroma collection covering every
+category (see DATABASE/SQL_CONNECTOR.py), not a separate collection per
+category -- so narrowing to one category at a time is a metadata `filter`
+on the search call, not a different vector store object. `category` is
+optional here specifically so this module still works for a
+category-agnostic search if one is ever needed, but WORKFLOW/ORCHE.py
+always passes one for a normal sales turn.
 
 Kept deliberately independent of LangGraph/CrewAI -- it just takes a
-LangChain vector store, a query and a requirements dict, and returns plain
-dicts, so it's easy to unit test without building a graph or an LLM crew.
+LangChain vector store, a query, a requirements dict and an optional
+category, and returns plain dicts, so it's easy to unit test without
+building a graph or an LLM crew.
 """
 import logging
 from typing import Optional
@@ -25,20 +32,26 @@ DEFAULT_TOP_K = 5
 FETCH_MULTIPLIER = 3
 
 
-def _semantic_candidates(vector_store, query: str, k: int) -> list:
+def _semantic_candidates(vector_store, query: str, k: int, category: Optional[str] = None) -> list:
     """Returns a list of (Document, relevance) with relevance in [0, 1],
     higher = more relevant, regardless of which similarity API the vector
     store actually supports. Falls back gracefully -- a vector store that
     only implements the plainest `similarity_search` still works, just with
-    less precise (rank-based) semantic scores."""
+    less precise (rank-based) semantic scores.
+
+    `category`, when given, is passed as a Chroma metadata filter so the
+    shared products collection only returns hits from that one category --
+    a phone-shaped query never accidentally surfaces a refrigerator."""
+    filter_kwargs = {"filter": {"category": category}} if category else {}
+
     try:
-        pairs = vector_store.similarity_search_with_relevance_scores(query, k=k)
+        pairs = vector_store.similarity_search_with_relevance_scores(query, k=k, **filter_kwargs)
         return [(doc, max(0.0, min(1.0, score))) for doc, score in pairs]
     except Exception as exc:  # pragma: no cover - depends on store config
         logger.debug("similarity_search_with_relevance_scores unavailable: %s", exc)
 
     try:
-        pairs = vector_store.similarity_search_with_score(query, k=k)
+        pairs = vector_store.similarity_search_with_score(query, k=k, **filter_kwargs)
         if not pairs:
             return []
         distances = [distance for _, distance in pairs]
@@ -50,7 +63,7 @@ def _semantic_candidates(vector_store, query: str, k: int) -> list:
     except Exception as exc:  # pragma: no cover - depends on store config
         logger.debug("similarity_search_with_score unavailable: %s", exc)
 
-    docs = vector_store.similarity_search(query, k=k)
+    docs = vector_store.similarity_search(query, k=k, **filter_kwargs)
     count = max(len(docs), 1)
     # No real score available at all -- assign a descending rank-based
     # score so ordering is still meaningful to the scoring engine.
@@ -62,15 +75,17 @@ def hybrid_search(
     query: str,
     requirements: Optional[dict] = None,
     top_k: int = DEFAULT_TOP_K,
+    category: Optional[str] = None,
 ) -> list:
     """Returns up to `top_k` candidate products, each a dict of the
     product's fields (from the Chroma document metadata -- i.e. the same
     row data DATABASE/SQL_CONNECTOR.py embedded) plus a "_scores" key
     holding the WORKFLOW/scoring.py breakdown, sorted by overall score
-    descending."""
+    descending. `category` scopes the search to one category of the shared
+    catalog -- see _semantic_candidates."""
     requirements = requirements or {}
     fetch_k = max(top_k * FETCH_MULTIPLIER, top_k)
-    semantic_hits = _semantic_candidates(vector_store, query, fetch_k)
+    semantic_hits = _semantic_candidates(vector_store, query, fetch_k, category=category)
 
     candidates = []
     seen_names = set()
@@ -101,7 +116,7 @@ def format_candidates_for_prompt(candidates: list) -> str:
         return "No matching products were found in the catalog."
 
     blocks = []
-    for candidate in candidates:
+    for rank, candidate in enumerate(candidates, start=1):
         fields = {
             key: value
             for key, value in candidate.items()
@@ -109,5 +124,10 @@ def format_candidates_for_prompt(candidates: list) -> str:
         }
         field_text = ", ".join(f"{key}: {value}" for key, value in fields.items())
         score = candidate["_scores"]["overall"]
-        blocks.append(f"- {field_text} (match score: {score:.2f})")
-    return "\n".join(blocks)
+        blocks.append(f"{rank}. {field_text} (match score: {score:.2f})")
+    header = (
+        "The products below are already ranked best-to-worst by our scoring "
+        "engine (#1 is the best overall match) -- keep this exact order in "
+        "your response, do not re-rank or reorder them yourself:\n"
+    )
+    return header + "\n".join(blocks)
