@@ -34,7 +34,10 @@ class Settings(BaseSettings):
     google_api_key: str = PLACEHOLDER_API_KEY
     llm_model: str = "gemini-3.1-flash-lite"
     llm_temperature: float | None = 0.4
-    llm_timeout_seconds: float = 45.0
+    # Per LLM call. Kept well under request_timeout_seconds so one slow
+    # call can't eat the whole turn.
+    llm_timeout_seconds: float = 30.0
+    llm_max_retries: int = 1
 
     # --- MySQL ---
     db_username: str = "salesman"
@@ -64,6 +67,15 @@ class Settings(BaseSettings):
     # assistant shows its best options instead of asking yet another one.
     max_clarifying_questions: int = 3
     normalize_catalog_with_llm: bool = True
+    # Build the semantic index in the background at startup (recommended);
+    # chats use database search until it's ready.
+    warm_index_on_startup: bool = True
+
+    # --- Diagnostics ---
+    # Log every workflow node: input state, agent used, output, timing.
+    log_graph_state: bool = True
+    # Also log full LLM prompts and raw structured outputs (very verbose).
+    log_llm_prompts: bool = False
 
     # --- Company identity ---
     company_name: str = "Trein"

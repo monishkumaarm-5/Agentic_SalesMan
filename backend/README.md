@@ -58,7 +58,21 @@ guard ─▶ understand ─┬─▶ finalize                          reply / c
   can ask the UI to show a side-by-side comparison.
 
 Every LLM step has a fallback, so a model outage degrades the answer instead
-of failing the turn. Each turn's decisions are logged (`GET /api/traces`).
+of failing the turn. Each turn's decisions are stored (`GET /api/traces`).
+
+## Logs
+
+With `LOG_GRAPH_STATE=true` (default) the server log shows the workflow graph
+at startup, then for every turn: each node with the state it received, the
+agent it used, what it returned and how long it took, every routing
+decision, every LLM call (agent, model, latency, parsed output) and a
+one-line turn summary. A timeout logs which step was still running.
+`LOG_LLM_PROMPTS=true` adds the full prompts.
+
+The semantic search index is built in a background thread at startup; until
+it's ready (first run downloads the embedding model), searches rank products
+straight from MySQL by keyword overlap, so chats never wait on it.
+`GET /api/health` reports `search_index: building | ready | failed`.
 
 ## API
 

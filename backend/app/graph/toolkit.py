@@ -4,6 +4,7 @@ alternative deployments) can swap any piece without monkeypatching.
 """
 import logging
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -25,30 +26,78 @@ class Toolkit:
     catalog_overview: Callable[[], list]
 
 
-class _LazyIndex:
-    """Builds and syncs the catalog index on first use, once."""
+class IndexNotReady(RuntimeError):
+    """The semantic index is still being built; callers fall back to
+    scoring catalog rows straight from MySQL."""
+
+
+class _BackgroundIndex:
+    """Builds and syncs the catalog index on a background thread.
+
+    Building can take minutes the first time (embedding-model download,
+    embedding every product, optional LLM spec filling), so it must never
+    run inside a chat request: until it's ready, `get()` raises
+    IndexNotReady and search falls back to the database."""
+
+    RETRY_AFTER_SECONDS = 60
 
     def __init__(self):
         self._index = None
         self._lock = threading.Lock()
+        self._state = "idle"          # idle | building | ready | failed
+        self._failed_at = 0.0
+        self._error: str | None = None
+
+    @property
+    def status(self) -> dict:
+        return {"state": self._state, "error": self._error}
+
+    def warm(self) -> None:
+        with self._lock:
+            if self._state in ("building", "ready"):
+                return
+            if self._state == "failed" and time.monotonic() - self._failed_at < self.RETRY_AFTER_SECONDS:
+                return
+            self._state = "building"
+        threading.Thread(target=self._build, name="catalog-index", daemon=True).start()
+
+    def _build(self) -> None:
+        started = time.monotonic()
+        logger.info("Catalog index: build started in the background")
+        try:
+            from app.catalog.index import CatalogIndex
+
+            index = CatalogIndex()
+            report = index.sync()
+            self._index, self._state, self._error = index, "ready", None
+            logger.info("Catalog index: ready in %.1fs (%d products, rebuilt=%s, partial=%d, rejected=%d)",
+                        time.monotonic() - started, report.indexed, report.rebuilt,
+                        len(report.partial), len(report.rejected))
+        except Exception as exc:  # noqa: BLE001
+            self._state, self._failed_at, self._error = "failed", time.monotonic(), str(exc)
+            logger.exception("Catalog index: build failed after %.1fs -- chats will use "
+                             "database search until it succeeds", time.monotonic() - started)
 
     def get(self):
-        if self._index is None:
-            with self._lock:
-                if self._index is None:
-                    from app.catalog.index import CatalogIndex
-
-                    index = CatalogIndex()
-                    index.sync()
-                    self._index = index
-        return self._index
+        if self._state == "ready":
+            return self._index
+        self.warm()
+        raise IndexNotReady(f"catalog index is {self._state}")
 
 
-_lazy_index = _LazyIndex()
+_index = _BackgroundIndex()
 
 
 def get_index():
-    return _lazy_index.get()
+    return _index.get()
+
+
+def warm_index() -> None:
+    _index.warm()
+
+
+def index_status() -> dict:
+    return _index.status
 
 
 def default_toolkit() -> Toolkit:

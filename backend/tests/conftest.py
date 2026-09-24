@@ -126,3 +126,25 @@ def run(graph):
         graph.invoke({"message": message}, config)
         return graph.get_state(config).values
     return _run
+
+
+@pytest.fixture
+def service_factory(tmp_path):
+    """Builds a ChatService whose agents can be swapped after creation."""
+    from app.services.chat import ChatService
+
+    def make():
+        agents = FakeAgents()
+        toolkit = Toolkit(
+            understand=lambda v: agents.understand(v),
+            recommend=lambda v: agents.recommend(v),
+            advise=lambda v: agents.advise(v),
+            semantic_search=semantic_search,
+            fallback_rows=lambda c: [dict(p) for p in PRODUCTS if p["category"] == c],
+            lookup_products=lambda names: [dict(p) for p in PRODUCTS if p["name"] in names],
+            catalog_overview=lambda: OVERVIEW,
+        )
+        settings = get_settings()
+        return ChatService(build_graph(toolkit, settings, InMemorySaver()), settings), agents
+
+    return make

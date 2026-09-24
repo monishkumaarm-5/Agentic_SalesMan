@@ -38,6 +38,10 @@ def create_app(service: ChatService | None = None, traces: TraceStore | None = N
     async def lifespan(app: FastAPI):
         app.state.traces = traces if traces is not None else TraceStore(settings.trace_db_path)
         app.state.chat_service = service or _default_service(app.state.traces)
+        if service is None and settings.warm_index_on_startup:
+            from app.graph.toolkit import warm_index
+
+            warm_index()  # background thread; chats use DB search until ready
         logger.info("%s assistant API v%s ready (model %s, auth %s, rate limit %s/min)",
                     settings.company_name, __version__, settings.llm_model,
                     "on" if settings.auth_enabled else "off", settings.rate_limit_per_minute)

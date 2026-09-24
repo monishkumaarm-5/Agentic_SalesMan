@@ -40,6 +40,9 @@ def health():
     except Exception as exc:  # noqa: BLE001
         checks["database"] = False
         logger.warning("Health check: database unreachable: %s", exc)
+    from app.graph.toolkit import index_status
+
+    checks["search_index"] = index_status()["state"]
     ok = checks["llm_configured"] and checks["database"]
     return HealthResponse(status="ok" if ok else "degraded", version=__version__, checks=checks)
 

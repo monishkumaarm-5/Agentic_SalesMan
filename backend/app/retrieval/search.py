@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable, Iterable
 
 from app.models import ShoppingProfile
-from app.retrieval.scoring import score_product
+from app.retrieval.scoring import keyword_relevance, score_product
 
 logger = logging.getLogger("salesman.retrieval")
 
@@ -41,8 +41,8 @@ def hybrid_search(
     except Exception as exc:  # noqa: BLE001
         if fallback is None:
             raise
-        logger.warning("Semantic search failed (%s); scoring catalog rows directly", exc)
-        hits = [(row, 0.5) for row in fallback(category)]
+        logger.warning("Semantic search unavailable (%s); ranking catalog rows by keyword overlap", exc)
+        hits = [(row, keyword_relevance(query, row)) for row in fallback(category)]
 
     avoid = {b.lower() for b in profile.avoid_brands}
     candidates, seen = [], set()

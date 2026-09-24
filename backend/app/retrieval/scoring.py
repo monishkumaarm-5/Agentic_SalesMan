@@ -55,6 +55,16 @@ def product_text(row: dict) -> str:
     )
 
 
+def keyword_relevance(query: str, row: dict) -> float:
+    """Rough 0..1 relevance from word overlap -- used when the semantic
+    index isn't available yet."""
+    words = _significant(query)
+    if not words:
+        return 0.5
+    hits = len(words & _tokens(product_text(row))) / len(words)
+    return round(0.35 + 0.6 * hits, 4)
+
+
 def budget_score(price, profile: ShoppingProfile) -> float | None:
     value = parse_numeric(price)
     if value is None or (profile.budget_max is None and profile.budget_min is None):
