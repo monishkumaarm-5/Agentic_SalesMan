@@ -1,0 +1,14 @@
+.env
+.env.local
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+var/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+htmlcov/
+.coverage

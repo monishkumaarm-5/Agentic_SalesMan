@@ -1,0 +1,25 @@
+# Runtime dependencies, pinned to the versions this project is tested with.
+
+# --- API ---
+fastapi>=0.141,<1
+uvicorn[standard]>=0.53,<1
+pydantic>=2.13,<3
+pydantic-settings>=2.15,<3
+
+# --- Catalog / search ---
+sqlalchemy>=2.0.54,<2.1
+pymysql>=1.2,<2
+pandas>=3.0,<4
+langchain-chroma>=1.1,<2
+langchain-huggingface>=1.2,<2
+# Local embedding model runtime (pulls in torch; the Dockerfile installs the CPU build).
+sentence-transformers>=3,<7
+
+# --- Agents / workflow ---
+langchain-core>=1.6,<2
+langchain-google-genai>=4.4,<5
+langgraph>=1.2,<2
+langgraph-checkpoint-sqlite>=3.1,<4
+
+# --- MCP server (mcp 2.x renamed FastMCP) ---
+mcp>=1.30,<2

@@ -1,9 +1,10 @@
-# Secrets / local config
-config.py
+# ─── Secrets / local config ────────────────────────────────
+backend/.env
+backend/.env.local
 .env
 .env.local
 
-# Python
+# ─── Python ────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -14,27 +15,46 @@ dist/
 *.egg-info/
 .eggs/
 
-# Virtual environments
+# ─── Virtual environments ──────────────────────────────────
 venv/
 env/
 ENV/
 .venv/
+.pytest_env/
 
-# IDE
+# ─── IDE ───────────────────────────────────────────────────
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
 
-# Vector DB / generated data
-WORKFLOW/chroma_db/
+# ─── Vector DB / generated data ────────────────────────────
+backend/var/
 
-# OS
+# ─── SQLite databases ─────────────────────────────────────
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+
+# ─── OS ────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Logs
+# ─── Logs ──────────────────────────────────────────────────
 *.log
 
-# Frontend (React / Vite)
-FRONTEND/node_modules/
-FRONTEND/dist/
-FRONTEND/.vite/
+# ─── Frontend ──────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ─── Docker ────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ─── Pytest ────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage

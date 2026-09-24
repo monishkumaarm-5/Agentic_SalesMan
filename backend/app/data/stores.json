@@ -1,0 +1,23 @@
+[
+  {
+    "name": "Trein T Nagar",
+    "city": "Chennai",
+    "address": "123 Usman Road, T Nagar, Chennai, Tamil Nadu 600017",
+    "phone": "044-4000-1000",
+    "hours": "10:00 AM - 9:00 PM, all days"
+  },
+  {
+    "name": "Trein Koramangala",
+    "city": "Bengaluru",
+    "address": "45 80 Feet Road, Koramangala, Bengaluru, Karnataka 560095",
+    "phone": "080-4000-2000",
+    "hours": "10:00 AM - 9:00 PM, all days"
+  },
+  {
+    "name": "Trein Banjara Hills",
+    "city": "Hyderabad",
+    "address": "12 Road No. 3, Banjara Hills, Hyderabad, Telangana 500034",
+    "phone": "040-4000-3000",
+    "hours": "10:00 AM - 9:00 PM, all days"
+  }
+]
