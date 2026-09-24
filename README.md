@@ -8,6 +8,7 @@ product cards, comparisons and quick replies, showing its progress live.
 ```
 backend/    FastAPI + LangGraph + Gemini, MySQL catalog, Chroma semantic index
 frontend/   React 19 + Vite chat UI (light/dark, streaming progress, compare, details)
+website/    Static product catalog site (reads products.json, renders by URL path)
 ```
 
 ## Quick start (Docker)
@@ -17,8 +18,9 @@ cp backend/.env.example backend/.env    # set GOOGLE_API_KEY at minimum
 docker compose up --build
 ```
 
-Open http://localhost:5173 (API docs at http://localhost:8000/docs). MySQL is
-seeded with 96 sample products across 12 categories on first start.
+Open http://localhost:5173 (API docs at http://localhost:8000/docs, product
+website at http://localhost:3000). MySQL is seeded with 96 sample products
+across 12 categories on first start.
 
 ## Local development
 
@@ -35,7 +37,7 @@ npm ci
 npm run dev
 ```
 
-Or run both with `python start.py` from the repository root.
+Or run all three with `python start.py` from the repository root.
 
 ## What makes it tick
 

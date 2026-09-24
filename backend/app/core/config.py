@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     # --- Company identity ---
     company_name: str = "Trein"
     company_tagline: str = "Every home, every device -- one store."
-    company_website: str = "https://www.trein.example.com"
+    company_website: str = "http://localhost:3000"
     company_support_phone: str = "1800-000-0000"
     company_currency: str = "INR"
     stores_file: Path = DATA_DIR / "stores.json"

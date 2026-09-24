@@ -100,6 +100,16 @@ def start_backend(port=8000):
     )
 
 
+def start_website(port=3000):
+    """Serve the static product website on a local dev server."""
+    website_dir = os.path.join(ROOT_DIR, "website")
+    if not os.path.isfile(os.path.join(website_dir, "index.html")):
+        return None
+    print(f"{cyan('▶ Website')}  → http://localhost:{port}")
+    cmd = [sys.executable, "-m", "http.server", str(port), "--bind", "0.0.0.0"]
+    return subprocess.Popen(cmd, cwd=website_dir)
+
+
 def start_frontend(backend_port=8000):
     """Start the Vite dev server."""
     print(f"{cyan('▶ Frontend')} → http://localhost:5173")
@@ -143,6 +153,10 @@ def main():
         if not args.backend_only:
             time.sleep(1)  # Let backend start binding first
             processes.append(("frontend", start_frontend(args.port)))
+
+        website_proc = start_website()
+        if website_proc:
+            processes.append(("website", website_proc))
 
         print()
         print(green("✔ All servers running. Press Ctrl+C to stop."))

@@ -59,6 +59,14 @@ services:
     depends_on:
       - backend
 
+  website:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      - ./website:/usr/share/nginx/html:ro
+
 volumes:
   mysql_data:
   backend_data:
