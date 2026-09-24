@@ -23,6 +23,10 @@ except ImportError:
 
 # --- Google Generative AI (Gemini) ---
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "your-google-api-key-here")
+# Chat model used by every agent (see AGENTS/llm.py).
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.1-flash-lite")
+# Leave unset to use the model's default sampling temperature.
+LLM_TEMPERATURE = float(os.environ["LLM_TEMPERATURE"]) if os.getenv("LLM_TEMPERATURE") else None
 
 # --- MySQL database credentials ---
 DB_USERNAME = os.getenv("DB_USERNAME", "your-db-username")

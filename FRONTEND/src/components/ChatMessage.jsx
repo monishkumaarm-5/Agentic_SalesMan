@@ -35,14 +35,19 @@ const ConfidenceBadge = memo(function ConfidenceBadge({ confidence }) {
 
 /* ── Recommendation content ───────────────────────────── */
 
+// The answer text (the sales pitch, or a follow-up answer / comparison about
+// products already shown) is always rendered -- the top-pick cards sit
+// alongside it, they don't replace it.
 function RecommendationContent({ confidence, content, product, candidates, showTopPicks }) {
   return (
-    <Suspense fallback={<p className="loading-text">Loading details…</p>}>
+    <>
       <ConfidenceBadge confidence={confidence} />
-      {!showTopPicks && content && <ReactMarkdown>{content}</ReactMarkdown>}
-      <TopPicksPanel product={product} />
-      <CandidateScores candidates={candidates} />
-    </Suspense>
+      {content && <ReactMarkdown>{content}</ReactMarkdown>}
+      <Suspense fallback={<p className="loading-text">Loading details…</p>}>
+        {showTopPicks && <TopPicksPanel product={product} />}
+        <CandidateScores candidates={candidates} />
+      </Suspense>
+    </>
   )
 }
 

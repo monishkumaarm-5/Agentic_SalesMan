@@ -1,5 +1,9 @@
 # Agentic SalesMan — Multi-Agent AI Commerce Assistant
 
+> **Note:** parts of this document describe the earlier CrewAI-based
+> pipeline. The live pipeline, setup steps and configuration are documented
+> in the [root README](../README.md).
+
 An agentic sales assistant for **phones, laptops and headphones**, built with
 **LangGraph, CrewAI, hybrid SQL+vector RAG, MCP, FastAPI and React**.
 

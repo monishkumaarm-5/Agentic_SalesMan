@@ -15,7 +15,7 @@ import logging
 from typing import List, Optional
 
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from AGENTS.llm import build_llm
 from pydantic import BaseModel, Field
 
 import config
@@ -64,7 +64,7 @@ class Requirements(BaseModel):
     brand: Optional[str] = None
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
+llm = build_llm()
 structured_llm = llm.with_structured_output(Requirements)
 
 EMPTY_REQUIREMENTS = {"budget_max": None, "use_cases": [], "brand": None}

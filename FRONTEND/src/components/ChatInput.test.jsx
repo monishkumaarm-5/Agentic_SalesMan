@@ -42,7 +42,7 @@ describe('ChatInput', () => {
 
   it('disables the textarea and button while disabled=true', () => {
     render(<ChatInput onSend={vi.fn()} disabled />)
-    expect(screen.getByPlaceholderText(/ask about/i)).toBeDisabled()
+    expect(screen.getByRole('textbox', { name: /chat message/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /send/i })).toBeDisabled()
   })
 })

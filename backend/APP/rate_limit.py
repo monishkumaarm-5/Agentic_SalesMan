@@ -19,6 +19,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     track its own separate counts.
     """
 
+    # Liveness probes (load balancers, Docker healthchecks) poll this
+    # constantly and must never be throttled into looking "down".
+    EXEMPT_PATHS = frozenset({"/api/health"})
+    # How many distinct clients to track before sweeping out idle ones.
+    PRUNE_THRESHOLD = 500
+
     def __init__(self, app, requests_per_minute: int = 20, window_seconds: float = 60.0):
         super().__init__(app)
         self.limit = requests_per_minute
@@ -26,8 +32,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._hits: dict[str, deque] = defaultdict(deque)
         self._lock = Lock()
 
+    def _prune(self, now: float) -> None:
+        """Drops clients whose most recent hit has aged out of the window.
+        (Checking only for already-empty deques never freed anything: a
+        client's deque is only trimmed when that same client returns.)"""
+        stale = [ip for ip, q in self._hits.items() if not q or now - q[-1] > self.window]
+        for ip in stale:
+            del self._hits[ip]
+
     async def dispatch(self, request: Request, call_next):
-        if self.limit <= 0 or not request.url.path.startswith("/api/"):
+        path = request.url.path
+        if self.limit <= 0 or not path.startswith("/api/") or path in self.EXEMPT_PATHS:
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"
@@ -48,11 +63,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
             hits.append(now)
 
-            # Periodically prune IPs whose windows have fully expired so the
-            # dict doesn't grow without bound as new clients come and go.
-            if len(self._hits) > 500:
-                stale = [ip for ip, q in self._hits.items() if not q]
-                for ip in stale:
-                    del self._hits[ip]
+            # Keep memory bounded as new clients come and go.
+            if len(self._hits) > self.PRUNE_THRESHOLD:
+                self._prune(now)
 
         return await call_next(request)

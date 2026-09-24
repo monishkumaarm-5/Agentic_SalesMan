@@ -28,7 +28,7 @@ import logging
 from typing import List, Optional
 
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from AGENTS.llm import build_llm
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("agentic_salesman.business_need")
@@ -178,7 +178,7 @@ class BusinessNeedAssessment(BaseModel):
     reply: str = ""
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
+llm = build_llm()
 structured_llm = llm.with_structured_output(BusinessNeedAssessment)
 
 

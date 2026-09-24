@@ -75,8 +75,12 @@ def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
 
 def budget_fit_score(price, budget_max: Optional[float]) -> float:
     price_value = parse_numeric(price)
-    if budget_max is None or price_value is None:
+    budget = parse_numeric(budget_max)
+    # A zero/negative "budget" is an extraction glitch, not a real
+    # constraint -- treat it as unknown instead of dividing by zero.
+    if budget is None or budget <= 0 or price_value is None:
         return NEUTRAL
+    budget_max = budget
     if price_value <= budget_max:
         return 1.0
     overage_ratio = (price_value - budget_max) / budget_max

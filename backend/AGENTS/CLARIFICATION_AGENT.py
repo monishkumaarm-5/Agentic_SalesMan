@@ -38,7 +38,7 @@ import logging
 from typing import List, Optional
 
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from AGENTS.llm import build_llm
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("agentic_salesman.clarification")
@@ -182,7 +182,7 @@ class ClarityCheck(BaseModel):
     missing: List[str] = Field(default_factory=list)
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
+llm = build_llm()
 consultation_llm = llm.with_structured_output(ConsultationQuestion)
 structured_llm = llm.with_structured_output(ClarityCheck)
 followup_llm = llm.with_structured_output(FollowupIntent)

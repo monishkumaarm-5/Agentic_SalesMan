@@ -1,30 +1,35 @@
+# Direct dependencies, pinned to the minor versions this project is tested
+# against. Upgrading across a major version has already broken the build
+# once (mcp 2.x removed FastMCP), so bump these deliberately.
+
 # --- Backend API ---
-fastapi
-uvicorn[standard]
-pydantic
-python-dotenv
+fastapi>=0.141,<1
+uvicorn[standard]>=0.53,<1
+pydantic>=2.13,<3
+python-dotenv>=1.2,<2
 
 # --- Database / vector store ---
-sqlalchemy
-pymysql
-pandas
-langchain-chroma
-langchain-huggingface
+sqlalchemy>=2.0.54,<2.1
+pymysql>=1.2,<2
+pandas>=3.0,<4
+langchain-chroma>=1.1,<2
+langchain-huggingface>=1.2,<2
 
-# --- LLM / agents / orchestration ---
-langchain
-langchain-core
-langchain-google-genai
-langgraph
-langgraph-checkpoint-sqlite
-crewai
+# --- LLM / orchestration ---
+langchain>=1.4,<2
+langchain-core>=1.6,<2
+langchain-google-genai>=4.4,<5
+langgraph>=1.2,<2
+langgraph-checkpoint-sqlite>=3.1,<4
+
+# --- Legacy CrewAI pipeline (WORKFLOW/ORCHE_crewai_legacy.py,
+# AGENTS/SALES_CREW_FACTORY.py). Not used by the live API. ---
+crewai>=0.193,<0.194
 
 # --- MCP (Model Context Protocol) ---
-# Backs MCP/server.py, which exposes the product catalog tools (see
-# TOOLS/product_tools.py) to any MCP client. crewai already pulls this in
-# transitively; pinned directly here since MCP/server.py imports it too.
-mcp
+# Backs MCP/server.py. mcp 2.x renamed FastMCP -> MCPServer.
+mcp>=1.30,<2
 
 # --- Testing ---
-pytest
-httpx
+pytest>=9.1,<10
+httpx>=0.28,<1

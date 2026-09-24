@@ -9,7 +9,16 @@
 -- so SQL_CONNECTOR re-embeds with the feedback text.
 -- =====================================================================
 
-ALTER TABLE products ADD COLUMN IF NOT EXISTS customer_feedback TEXT NULL AFTER description;
+-- MySQL 8 has no `ADD COLUMN IF NOT EXISTS` (a MariaDB extension), so
+-- check information_schema first; safe to re-run.
+SET @exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'customer_feedback'
+);
+SET @ddl := IF(@exists = 0, 'ALTER TABLE products ADD COLUMN customer_feedback TEXT NULL AFTER description', 'DO 0');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- Also fix the Trein Nova 12 Lite description to clarify the branding
 UPDATE products SET description = 'Trein store-brand smartphone (powered by Samsung internals). A reliable everyday phone with a big battery and a smooth 90Hz display.'

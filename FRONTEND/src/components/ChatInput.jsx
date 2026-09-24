@@ -13,7 +13,7 @@ import { useAutoResize } from '../hooks/useAutoResize.js'
 function ChatInput({ onSend, disabled = false, SendIcon }) {
   const [value, setValue] = useState('')
   const textareaRef = useRef(null)
-  const resizeTextarea = useAutoResize(textareaRef, 120)
+  const resizeTextarea = useAutoResize(120)
 
   const resetHeight = useCallback(() => {
     if (textareaRef.current) {

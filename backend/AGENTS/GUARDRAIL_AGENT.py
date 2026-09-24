@@ -61,14 +61,35 @@ _MAX_MESSAGE_CHARS = 2000
 _PLACEHOLDER_ANSWER_MARKERS = ("todo", "lorem ipsum", "fixme", "n/a - ")
 
 
+# Words that can trail a greeting without adding any shopping content
+# ("hi there", "hello team", "thanks a lot bot").
+_GREETING_FILLER = {"there", "team", "bot", "assistant", "all", "everyone", "friend", "again", "so", "much", "a", "lot"}
+
+_GREETING_RE = re.compile(
+    r"^(?:" + "|".join(sorted((re.escape(p) for p in _GREETING_PHRASES), key=len, reverse=True)) + r")\b"
+)
+
+
 def _looks_like_greeting(text: str) -> bool:
-    normalized = text.strip().lower().strip("!.?,; ")
-    if normalized in _GREETING_PHRASES:
-        return True
-    return any(
-        normalized == phrase or normalized.startswith(phrase + " ")
-        for phrase in _GREETING_PHRASES
-    )
+    """True only for pure small talk. A message that merely *starts* with a
+    greeting ("hey, can you recommend a laptop under 50000?") is a real
+    shopping request and must not be answered with the canned greeting."""
+    normalized = re.sub(r"[^\w\s']", " ", text.lower())
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    if not normalized:
+        return False
+
+    # Peel greeting phrases off the front repeatedly ("hi, good morning!").
+    while True:
+        match = _GREETING_RE.match(normalized)
+        if not match:
+            break
+        normalized = normalized[match.end():].strip()
+
+    if normalized == text.lower().strip():
+        return False  # didn't start with a greeting at all
+    leftover = [word for word in normalized.split() if word not in _GREETING_FILLER]
+    return not leftover
 
 
 # Common everyday words for a catalog category that don't literally
@@ -81,14 +102,28 @@ def _looks_like_greeting(text: str) -> bool:
 # from their own (LLM-backed) reading of the message -- see ORCHE.py's
 # module docstring for how that self-correction path works.
 _CATEGORY_ALIASES = {
-    "mobile": ("phone", "smartphone", "iphone", "android"),
-    "laptop": ("notebook", "macbook", "ultrabook"),
-    "headphone": ("earphone", "earbud", "earbuds", "headset"),
+    "mobile": ("phone", "smartphone", "iphone", "android", "cellphone", "cell phone", "mobile phone"),
+    "laptop": ("notebook", "macbook", "ultrabook", "chromebook"),
+    "tablet": ("ipad", "tab"),
+    "headphone": ("earphone", "earbud", "headset", "airpods", "tws"),
+    "speaker": ("soundbar", "bluetooth speaker"),
+    "smartwatch": ("smart watch", "fitness band", "fitness tracker", "apple watch"),
     "refrigerator": ("fridge",),
-    "television": ("tv",),
-    "air conditioner": ("ac", "aircon"),
+    "television": ("tv", "smart tv", "led tv", "oled"),
+    "air conditioner": ("ac", "aircon", "split ac", "window ac"),
     "washing machine": ("washer",),
+    "microwave oven": ("microwave", "otg"),
+    "mixer grinder": ("mixer", "grinder", "mixie", "blender"),
 }
+
+
+def _term_pattern(term: str) -> re.Pattern:
+    """Whole-word match for a category name or alias, tolerating a plural
+    ("laptops", "watches") -- plain substring matching mis-fired on
+    "headphones" (contains "phone" -> Mobile), "black"/"each" (contain
+    "ac" -> Air Conditioner) and "dishwasher" (contains "washer")."""
+    words = [re.escape(word) for word in term.lower().split()]
+    return re.compile(r"\b" + r"\s+".join(words) + r"(?:s|es)?\b")
 
 
 def _matched_categories(text: str, known_categories: List[str]) -> List[str]:
@@ -101,9 +136,11 @@ def _matched_categories(text: str, known_categories: List[str]) -> List[str]:
     lowered = text.lower()
     matched = []
     for cat in known_categories:
-        cat_lower = cat.lower()
-        aliases = _CATEGORY_ALIASES.get(cat_lower, ())
-        if cat_lower in lowered or any(alias in lowered for alias in aliases):
+        cat_lower = str(cat).strip().lower()
+        if not cat_lower:
+            continue
+        terms = (cat_lower,) + _CATEGORY_ALIASES.get(cat_lower, ())
+        if any(_term_pattern(term).search(lowered) for term in terms):
             matched.append(cat)
     return matched
 

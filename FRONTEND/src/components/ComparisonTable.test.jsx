@@ -65,4 +65,22 @@ describe('ComparisonTable', () => {
     )
     expect(container.querySelector('tr.differs')).toBeInTheDocument()
   })
+
+  it('hides internal bookkeeping columns and formats prices', () => {
+    render(
+      <ComparisonTable
+        comparison={{
+          products: {
+            A: { id: 1, name: 'A', price: 1000, mrp: null, ingestion_status: 'complete' },
+            B: { id: 2, name: 'B', price: 2000, mrp: 2500, ingestion_status: 'complete' },
+          },
+          differing_fields: ['price', 'mrp'],
+          missing: ['C'],
+        }}
+      />
+    )
+    expect(screen.queryByText('complete')).not.toBeInTheDocument()
+    expect(screen.getByText('₹2,500')).toBeInTheDocument()
+    expect(screen.getByText(/Not found in the catalog: C/)).toBeInTheDocument()
+  })
 })

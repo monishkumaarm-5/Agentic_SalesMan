@@ -28,6 +28,7 @@ up by name.
 """
 import difflib
 import logging
+import math
 import re
 from typing import Optional
 
@@ -110,8 +111,11 @@ def parse_numeric(value) -> Optional[float]:
     crashing on a catalog they don't fully control the shape of."""
     if value is None:
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, bool):
         return float(value)
+    if isinstance(value, (int, float)):
+        number = float(value)
+        return None if math.isnan(number) else number
     text = str(value).strip()
     if not text:
         return None
@@ -122,6 +126,31 @@ def parse_numeric(value) -> Optional[float]:
     if "tb" in text.lower():
         number *= 1000
     return number
+
+
+def _json_safe(value):
+    """NaN/NaT (pandas' stand-in for SQL NULL) -> None, numpy scalars ->
+    plain Python, so tool results always serialize as valid JSON (FastAPI
+    rejects NaN outright, which turned /api/compare into a 500)."""
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass  # list/dict values
+    if hasattr(value, "item") and not isinstance(value, (str, bytes)):
+        try:
+            return value.item()
+        except (AttributeError, ValueError):
+            return value
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    return value
+
+
+def _clean_record(record: dict) -> dict:
+    return {key: _json_safe(value) for key, value in record.items()}
 
 
 def _find_row(df: pd.DataFrame, product_name: str) -> Optional[pd.Series]:
@@ -202,7 +231,7 @@ def search_products(
     if "price" in df.columns:
         df = df.sort_values(by="price", key=lambda s: s.apply(parse_numeric))
 
-    return df.head(limit).to_dict(orient="records")
+    return [_clean_record(row) for row in df.head(limit).to_dict(orient="records")]
 
 
 def get_product_details(category: str, product_name: str) -> Optional[dict]:
@@ -211,20 +240,19 @@ def get_product_details(category: str, product_name: str) -> Optional[dict]:
     expected, common outcome for a name typed by an LLM or a customer."""
     df = _load_table(category)
     row = _find_row(df, product_name)
-    return None if row is None else row.to_dict()
+    return None if row is None else _clean_record(row.to_dict())
 
 
 
 # Internal-only DB columns that should never reach a customer-facing
-# comparison (currently just the numeric primary key -- it's meaningless
-# outside the database and was leaking straight into the API/UI). Every
-# other column the catalog happens to have is still shown.
-COMPARISON_EXCLUDED_FIELDS = {"id"}
+# comparison (the numeric primary key and sync bookkeeping). Every other
+# column the catalog happens to have is still shown.
+COMPARISON_EXCLUDED_FIELDS = {"id", "ingestion_status", "ingestion_missing_fields"}
 
 
 def _comparison_view(row: dict) -> dict:
     return {
-        key: value
+        key: _json_safe(value)
         for key, value in row.items()
         if str(key).lower() not in COMPARISON_EXCLUDED_FIELDS
     }
@@ -285,9 +313,14 @@ def check_inventory(category: str, product_name: str) -> dict:
 
     inventory_col = _inventory_columns(df)
     if inventory_col:
-        raw = row[inventory_col]
+        raw = _json_safe(row[inventory_col])
         quantity = parse_numeric(raw)
-        in_stock = bool(quantity) if quantity is not None else bool(raw)
+        if quantity is not None:
+            in_stock = quantity > 0
+        elif raw is None:
+            in_stock = None  # column exists but isn't filled in for this row
+        else:
+            in_stock = str(raw).strip().lower() not in ("", "0", "false", "no")
         return {
             "product": row["name"],
             "in_stock": in_stock,

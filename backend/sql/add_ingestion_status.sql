@@ -15,7 +15,7 @@
 --   'incomplete' -- failed the gate (even after best-effort LLM
 --                   normalization); ingestion_missing_fields names why
 --
--- Safe to run more than once -- IF NOT EXISTS guards both columns.
+-- Safe to run more than once -- every step checks whether it already ran.
 --
 --   mysql -u <username> -p retail_shop < add_ingestion_status.sql
 --
@@ -23,9 +23,34 @@
 -- WORKFLOW/chroma_db/) so DB_CONNECTOR's next sync populates it.
 -- =====================================================================
 
-ALTER TABLE products
-    ADD COLUMN IF NOT EXISTS ingestion_status VARCHAR(20) NULL,
-    ADD COLUMN IF NOT EXISTS ingestion_missing_fields JSON NULL;
+-- MySQL 8 has no `ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`
+-- (those are MariaDB extensions), so each step checks information_schema
+-- first and only runs its DDL when needed.
 
-CREATE INDEX IF NOT EXISTS idx_products_ingestion_status
-    ON products (ingestion_status);
+SET @exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'ingestion_status'
+);
+SET @ddl := IF(@exists = 0, 'ALTER TABLE products ADD COLUMN ingestion_status VARCHAR(20) NULL', 'DO 0');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'ingestion_missing_fields'
+);
+SET @ddl := IF(@exists = 0, 'ALTER TABLE products ADD COLUMN ingestion_missing_fields JSON NULL', 'DO 0');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products'
+      AND INDEX_NAME = 'idx_products_ingestion_status'
+);
+SET @ddl := IF(@exists = 0, 'CREATE INDEX idx_products_ingestion_status ON products (ingestion_status)', 'DO 0');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

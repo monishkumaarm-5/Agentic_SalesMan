@@ -1,4 +1,4 @@
-import { useState, useCallback, memo } from 'react'
+import { useState, memo } from 'react'
 import { compareProducts } from '../api.js'
 import ComparisonTable from './ComparisonTable.jsx'
 import { formatINR } from '../utils/format.js'

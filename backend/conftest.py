@@ -24,6 +24,24 @@ os.environ.setdefault("DB_NAME", "test")
 os.environ.setdefault(
     "CHECKPOINT_DB_PATH", "/tmp/agentic_salesman_test_checkpoints.sqlite"
 )
+os.environ.setdefault("TRACE_DB_PATH", "/tmp/agentic_salesman_test_traces.sqlite")
+# The app-wide rate limiter would otherwise start returning 429 partway
+# through the API test module (tests/test_rate_limit.py exercises the
+# middleware on its own app instance).
+os.environ.setdefault("RATE_LIMIT_PER_MINUTE", "0")
 
 if not os.path.exists(_config_path) and os.path.exists(_dummy_path):
     shutil.copy(_dummy_path, _config_path)
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_shared_db_engine():
+    """DATABASE.SQL_CONNECTOR caches one pooled engine per process; reset it
+    around every test so a mocked engine never leaks into the next test."""
+    from DATABASE import SQL_CONNECTOR
+
+    SQL_CONNECTOR._shared_engine = None
+    yield
+    SQL_CONNECTOR._shared_engine = None

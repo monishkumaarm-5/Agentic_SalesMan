@@ -22,7 +22,7 @@ afterEach(() => {
 describe('App', () => {
   it('shows the welcome message on first load', () => {
     render(<App />)
-    expect(screen.getByText(/Trein shopping assistant/i)).toBeInTheDocument()
+    expect(screen.getByText(/your AI shopping assistant/i)).toBeInTheDocument()
   })
 
   it('sends a message and renders the assistant reply', async () => {
@@ -74,7 +74,7 @@ describe('App', () => {
     expect(screen.getByText('Here is a great phone')).toBeInTheDocument()
   })
 
-  it('clears history and starts a new thread on "New conversation"', async () => {
+  it('clears history and starts a new thread on "New chat"', async () => {
     sendMessage.mockResolvedValue({
       answer: 'Here is a great phone',
       context: 'MOBILE',
@@ -88,11 +88,30 @@ describe('App', () => {
     await user.keyboard('{Enter}')
     await screen.findByText('Here is a great phone')
 
-    await user.click(screen.getByRole('button', { name: /new conversation/i }))
+    await user.click(screen.getByRole('button', { name: /new chat/i }))
 
     expect(screen.queryByText('recommend a phone')).not.toBeInTheDocument()
     await waitFor(() => {
       expect(localStorage.getItem('agentic-salesman:chat-v1')).not.toContain('recommend a phone')
     })
+  })
+
+  it('drops a pending reply when a new chat is started mid-request', async () => {
+    let resolveReply
+    sendMessage.mockImplementation(
+      () => new Promise((resolve) => { resolveReply = resolve }),
+    )
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.type(screen.getByPlaceholderText(/ask about/i), 'recommend a phone')
+    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('button', { name: /new chat/i }))
+
+    resolveReply({ answer: 'Late reply', context: 'MOBILE', thread_id: 'thread-1', product: null })
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(screen.queryByText('Late reply')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/ask about/i)).not.toBeDisabled()
   })
 })

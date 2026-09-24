@@ -22,7 +22,7 @@ import time
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.join(ROOT_DIR, "backend")
-FRONTEND_DIR = os.path.join(ROOT_DIR, "frontend")
+FRONTEND_DIR = os.path.join(ROOT_DIR, "FRONTEND")
 
 # Colors for terminal output
 IS_WINDOWS = platform.system() == "Windows"
@@ -106,10 +106,9 @@ def start_frontend(backend_port=8000):
 
     cmd = ["npm", "run", "dev"]
     env = {**os.environ}
-    # The vite.config.js proxy already points to 127.0.0.1:8000. If the
-    # backend is on a different port, override via env.
-    if backend_port != 8000:
-        env["VITE_API_BASE_URL"] = f"http://localhost:{backend_port}/api"
+    # Point the Vite dev proxy (vite.config.js) at the backend's port, so
+    # the browser keeps calling same-origin /api and CORS never applies.
+    env["API_PROXY_TARGET"] = f"http://127.0.0.1:{backend_port}"
 
     return subprocess.Popen(
         cmd,

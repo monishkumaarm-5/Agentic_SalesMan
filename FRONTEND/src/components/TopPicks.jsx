@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo, useMemo } from 'react'
+import { useState, useCallback, useId, useRef, memo, useMemo } from 'react'
 import { formatINR, parseSpecNumber, splitSentences, mapsSearchUrl } from '../utils/format.js'
 import { isTopPicksShape } from '../utils/scores.js'
 import { SPEC_LABELS, evaluateSpec } from '../utils/specRules.js'
@@ -7,10 +7,7 @@ import { SPEC_LABELS, evaluateSpec } from '../utils/specRules.js'
    Product selector (tab-like switcher)
    ───────────────────────────────────────────────────────── */
 
-const ProductSelector = memo(function ProductSelector({ picks, selectedRank, onSelect }) {
-  // Generate a unique id prefix for ARIA tab/tabpanel pairing
-  const panelId = 'picks-panel'
-
+const ProductSelector = memo(function ProductSelector({ picks, selectedRank, onSelect, panelId }) {
   return (
     <div className="product-selector" role="tablist" aria-label="Top picks options">
       {picks.map((pick, index) => {
@@ -22,7 +19,7 @@ const ProductSelector = memo(function ProductSelector({ picks, selectedRank, onS
             className={`product-option${isSelected ? ' active' : ''}`}
             onClick={() => onSelect(pick.rank)}
             role="tab"
-            id={`tab-${pick.rank}`}
+            id={`${panelId}-tab-${pick.rank}`}
             aria-selected={isSelected}
             aria-controls={panelId}
             tabIndex={isSelected ? 0 : -1}
@@ -74,16 +71,28 @@ const WhyAndFeatures = memo(function WhyAndFeatures({ pick }) {
     () => Object.entries(pick.specs || {}).filter(([, v]) => v != null && v !== ''),
     [pick.specs],
   )
+  const keyFeatures = useMemo(
+    () => [...new Set((pick.key_features || []).filter(Boolean).map(String))],
+    [pick.key_features],
+  )
 
   return (
     <div className="info-grid">
       <section className="card">
-        <h3 className="card-title">
-          Why this {pick.name ? pick.name.split(' ')[0] : 'product'}?
-        </h3>
+        <h3 className="card-title">Why this {pick.name || 'product'}?</h3>
         <p className="card-description">
           {pick.why_this || 'No verified reasoning available yet.'}
         </p>
+        {keyFeatures.length > 0 && (
+          <>
+            <h4 className="card-subtitle">Key features</h4>
+            <ul className="key-features">
+              {keyFeatures.map((feature) => (
+                <li key={feature}>{feature}</li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
 
       <section className="card">
@@ -287,7 +296,7 @@ const ComparisonSection = memo(function ComparisonSection({ picks, selectedRank,
   })
 
   return (
-    <section aria-label="Product comparison">
+    <section className="top-picks-comparison" aria-label="Product comparison">
       <div className="comparison-header">
         <h2>Compare top {picks.length} picks</h2>
         <p>Click a product to view its complete details above.</p>
@@ -345,42 +354,56 @@ const ComparisonSection = memo(function ComparisonSection({ picks, selectedRank,
    Category top picks (one category with its N products)
    ───────────────────────────────────────────────────────── */
 
-function CategoryTopPicks({ picks, label, idPrefix }) {
+function CategoryTopPicks({ picks, label }) {
+  // Unique per rendered panel -- the chat shows many of these at once
+  // (one per category, per message), so a fixed id would repeat.
+  const panelId = `picks-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const [selectedRank, setSelectedRank] = useState(picks?.[0]?.rank ?? 1)
 
-  // Sync selection when picks data changes
-  useEffect(() => {
-    if (Array.isArray(picks) && picks.length > 0) {
-      if (!picks.some((p) => p.rank === selectedRank)) {
-        setSelectedRank(picks[0].rank)
-      }
-    }
-  }, [picks, selectedRank])
+  const panelRef = useRef(null)
 
   const handleSelect = useCallback((rank) => setSelectedRank(rank), [])
+  // The comparison table sits below the details it switches, so bring the
+  // newly selected product's details back into view.
+  const handleCompareSelect = useCallback((rank) => {
+    setSelectedRank(rank)
+    panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
 
   if (!Array.isArray(picks) || picks.length === 0) return null
 
+  // Falls back to the first pick if the selected rank isn't in `picks`
+  // (e.g. new data arrived) -- derived here rather than synced in an effect.
   const selectedPick = picks.find((p) => p.rank === selectedRank) || picks[0]
 
   return (
     <section
       className="top-picks"
-      id={`picks-${idPrefix}`}
+      id={panelId}
+      ref={panelRef}
       role="tabpanel"
       aria-label={label || 'Top picks'}
     >
       {label && <div className="top-picks-label">{label}</div>}
 
       {picks.length > 1 && (
-        <ProductSelector picks={picks} selectedRank={selectedPick.rank} onSelect={handleSelect} />
+        <ProductSelector
+          picks={picks}
+          selectedRank={selectedPick.rank}
+          onSelect={handleSelect}
+          panelId={panelId}
+        />
       )}
 
       <RecommendedHero pick={selectedPick} />
       <WhyAndFeatures pick={selectedPick} />
       <SuitsYou pick={selectedPick} />
       <BuyCard pick={selectedPick} />
-      <ComparisonSection picks={picks} selectedRank={selectedPick.rank} onSelect={handleSelect} />
+      <ComparisonSection
+        picks={picks}
+        selectedRank={selectedPick.rank}
+        onSelect={handleCompareSelect}
+      />
     </section>
   )
 }
@@ -393,7 +416,7 @@ function TopPicksPanel({ product }) {
   if (!product || typeof product !== 'object') return null
 
   if (isTopPicksShape(product)) {
-    return <CategoryTopPicks picks={product.top_picks} idPrefix="single" />
+    return <CategoryTopPicks picks={product.top_picks} />
   }
 
   const entries = Object.entries(product).filter(([, value]) => isTopPicksShape(value))
@@ -406,7 +429,6 @@ function TopPicksPanel({ product }) {
           key={category}
           picks={value.top_picks}
           label={category}
-          idPrefix={category}
         />
       ))}
     </div>

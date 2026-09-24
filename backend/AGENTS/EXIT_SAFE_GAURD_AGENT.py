@@ -20,7 +20,7 @@ import logging
 from typing import List, Optional
 
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from AGENTS.llm import build_llm
 from pydantic import BaseModel, Field
 
 import config
@@ -86,7 +86,7 @@ class Evaluation(BaseModel):
     reasons: List[str] = Field(default_factory=list)
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
+llm = build_llm()
 structured_llm = llm.with_structured_output(Evaluation)
 
 DIMENSIONS = (

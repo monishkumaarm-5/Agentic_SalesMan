@@ -16,9 +16,11 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pytest
 
 from DATABASE.SQL_CONNECTOR import (
     DB_CONNECTOR,
+    catalog_fingerprint,
     check_mysql_connectivity,
     list_categories,
     parse_attributes,
@@ -31,8 +33,15 @@ def _bare_connector():
     return connector
 
 
-def test_sync_table_skips_when_counts_already_match():
-    df = pd.DataFrame([{"name": "A"}, {"name": "B"}])
+@pytest.fixture
+def chroma_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr("DATABASE.SQL_CONNECTOR.CHROMA_DIR", str(tmp_path))
+    return tmp_path
+
+
+def test_sync_table_skips_when_catalog_unchanged(chroma_dir):
+    df = pd.DataFrame([{"id": 1, "name": "A"}, {"id": 2, "name": "B"}])
+    (chroma_dir / "products.fingerprint").write_text(catalog_fingerprint(df))
     connector = _bare_connector()
     store = MagicMock()
     store.get.return_value = {"ids": ["1", "2"]}
@@ -44,7 +53,47 @@ def test_sync_table_skips_when_counts_already_match():
     store.add_documents.assert_not_called()
 
 
-def test_sync_table_embeds_when_collection_is_empty():
+def test_sync_table_skips_even_when_some_rows_were_left_out_as_incomplete(chroma_dir):
+    """Regression test: the old row-count check never matched once any row
+    was skipped by the completeness gate, so every startup re-embedded the
+    whole catalog (and re-ran LLM normalization)."""
+    df = pd.DataFrame([{"id": 1, "name": "A"}, {"id": 2, "name": "B"}, {"id": 3, "name": "C"}])
+    (chroma_dir / "products.fingerprint").write_text(catalog_fingerprint(df))
+    connector = _bare_connector()
+    store = MagicMock()
+    store.get.return_value = {"ids": ["product-1", "product-2"]}  # row 3 incomplete
+
+    with patch("DATABASE.SQL_CONNECTOR.pd.read_sql", return_value=df):
+        connector._sync_table("products", store, lambda d: ["doc"] * len(d))
+
+    store.delete.assert_not_called()
+    store.add_documents.assert_not_called()
+
+
+def test_sync_table_rebuilds_when_a_row_is_edited(chroma_dir):
+    before = pd.DataFrame([{"id": 1, "name": "A", "price": 100}])
+    after = pd.DataFrame([{"id": 1, "name": "A", "price": 90}])
+    (chroma_dir / "products.fingerprint").write_text(catalog_fingerprint(before))
+    connector = _bare_connector()
+    store = MagicMock()
+    store.get.return_value = {"ids": ["product-1"]}
+    built = ["doc1"]
+
+    with patch("DATABASE.SQL_CONNECTOR.pd.read_sql", return_value=after):
+        connector._sync_table("products", store, lambda d: built)
+
+    store.delete.assert_called_once_with(ids=["product-1"])
+    store.add_documents.assert_called_once_with(built)
+    assert (chroma_dir / "products.fingerprint").read_text() == catalog_fingerprint(after)
+
+
+def test_fingerprint_ignores_ingestion_bookkeeping_columns():
+    base = pd.DataFrame([{"id": 1, "name": "A", "ingestion_status": None}])
+    stamped = pd.DataFrame([{"id": 1, "name": "A", "ingestion_status": "complete"}])
+    assert catalog_fingerprint(base) == catalog_fingerprint(stamped)
+
+
+def test_sync_table_embeds_when_collection_is_empty(chroma_dir):
     df = pd.DataFrame([{"name": "A"}])
     connector = _bare_connector()
     store = MagicMock()
@@ -58,7 +107,22 @@ def test_sync_table_embeds_when_collection_is_empty():
     store.add_documents.assert_called_once_with(built)
 
 
-def test_sync_table_rebuilds_on_count_mismatch():
+def test_sync_table_uses_stable_product_ids(chroma_dir):
+    from langchain_core.documents import Document
+
+    df = pd.DataFrame([{"id": 7, "name": "A"}])
+    connector = _bare_connector()
+    store = MagicMock()
+    store.get.return_value = {"ids": []}
+    built = [Document(page_content="A", metadata={"id": 7, "name": "A"})]
+
+    with patch("DATABASE.SQL_CONNECTOR.pd.read_sql", return_value=df):
+        connector._sync_table("products", store, lambda d: built)
+
+    store.add_documents.assert_called_once_with(built, ids=["product-7"])
+
+
+def test_sync_table_rebuilds_on_count_mismatch(chroma_dir):
     """Regression test: products added to MySQL after the first embedding
     pass used to never show up in the vector store."""
     df = pd.DataFrame([{"name": "A"}, {"name": "B"}, {"name": "C"}])
@@ -156,7 +220,6 @@ def test_list_categories_returns_distinct_values():
         categories = list_categories()
 
     assert categories == ["Laptop", "Mobile"]
-    assert mock_engine.dispose.called
 
 
 def test_list_categories_fails_open_to_empty_list_on_error():

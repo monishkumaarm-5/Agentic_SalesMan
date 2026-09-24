@@ -64,6 +64,8 @@ _NO_OFFLINE_PHRASES = ("not available in offline", "online only", "online-only")
 NON_SPEC_FIELDS = {
     "id", "name", "category", "price", "mrp", "units_available",
     "in_stock", "online_link", "offline_availability", "description",
+    "customer_feedback", "created_at", "updated_at",
+    "ingestion_status", "ingestion_missing_fields",
     "_page_content", "_scores",
 }
 

@@ -5,11 +5,18 @@ import { useLocalStorage } from './useLocalStorage.js'
 const STORAGE_KEY = 'agentic-salesman:chat-v1'
 const DEFAULT_COMPANY_NAME = 'Trein'
 
-function createThreadId() {
+function createId(prefix) {
   return typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
-    : `thread-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    : `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
+
+const createThreadId = () => createId('thread')
+
+// Globally unique (not a per-mount counter): messages restored from
+// localStorage keep their ids, so a counter restarting at 1 after a reload
+// would hand out duplicate React keys.
+const newMessageId = (suffix) => `${createId('msg')}-${suffix}`
 
 function buildWelcomeMessage(companyName) {
   return {
@@ -35,8 +42,10 @@ export function useChat() {
   const [companyInfo, setCompanyInfo] = useState(null)
   const [isSending, setIsSending] = useState(false)
 
-  const nextId = useRef(0)
-  const newMessageId = (suffix) => `${(nextId.current += 1)}-${suffix}`
+  // In-flight request, so "New chat" can cancel it instead of letting its
+  // reply land in the fresh conversation.
+  const inFlight = useRef(null)
+  useEffect(() => () => inFlight.current?.abort(), [])
 
   // Fetch company info once
   useEffect(() => {
@@ -64,13 +73,18 @@ export function useChat() {
 
   const sendMessage = useCallback(
     async (question) => {
+      if (inFlight.current) return // one turn at a time per conversation
+      const controller = new AbortController()
+      inFlight.current = controller
+
       const userMessage = { id: newMessageId('user'), role: 'user', content: question }
       setMessages((prev) => [...prev, userMessage])
       setIsSending(true)
 
       try {
-        const result = await apiSendMessage(question, threadId)
-        setThreadId(result.thread_id)
+        const result = await apiSendMessage(question, threadId, controller.signal)
+        if (controller.signal.aborted) return
+        if (result?.thread_id) setThreadId(result.thread_id)
         setMessages((prev) => [
           ...prev,
           {
@@ -84,6 +98,7 @@ export function useChat() {
           },
         ])
       } catch (error) {
+        if (controller.signal.aborted || error?.name === 'AbortError') return
         console.error('[app] send message failed', error)
         setMessages((prev) => [
           ...prev,
@@ -95,13 +110,19 @@ export function useChat() {
           },
         ])
       } finally {
-        setIsSending(false)
+        if (inFlight.current === controller) {
+          inFlight.current = null
+          setIsSending(false)
+        }
       }
     },
     [threadId],
   )
 
   const resetChat = useCallback(() => {
+    inFlight.current?.abort()
+    inFlight.current = null
+    setIsSending(false)
     clearStored()
     setMessages([buildWelcomeMessage(companyInfo?.name || DEFAULT_COMPANY_NAME)])
     setThreadId(createThreadId())

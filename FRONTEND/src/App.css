@@ -760,6 +760,23 @@
   margin: 0;
 }
 
+.card-subtitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 14px 0 6px;
+}
+
+.key-features {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
 /* Features spec pills */
 .features {
   display: flex;
@@ -1141,6 +1158,23 @@
 .comparison-table-wrap {
   overflow-x: auto;
   margin-top: 14px;
+}
+
+.comparison-table tbody th {
+  background: var(--surface);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.comparison-table tr.differs td,
+.comparison-table tr.differs th {
+  background: var(--accent-muted);
+}
+
+.comparison-missing {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* ─── Candidate scores (collapsible) ────────────────────── */

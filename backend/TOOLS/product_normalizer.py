@@ -19,7 +19,7 @@ import logging
 from typing import Optional
 
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from AGENTS.llm import build_llm
 from pydantic import create_model
 
 logger = logging.getLogger("agentic_salesman.product_normalizer")
@@ -48,7 +48,7 @@ prompt_template = PromptTemplate.from_template(
     """
 )
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
+llm = build_llm()
 
 
 def _model_for_fields(fields):

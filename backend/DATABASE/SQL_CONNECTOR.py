@@ -5,8 +5,10 @@ Single MySQL table (`products`) with a JSON `attributes` column for
 category-specific specs. One Chroma collection for vector search.
 Adding a new category is just new rows, never new code.
 """
+import hashlib
 import json
 import logging
+import math
 import os
 from functools import lru_cache
 from typing import Optional
@@ -29,6 +31,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CHROMA_DIR = os.path.join(BASE_DIR, "..", "WORKFLOW", "chroma_db")
 
 PRODUCTS_TABLE = "products"
+
+# Columns this module itself writes back after every sync (see
+# _record_incomplete) -- excluded from the catalog fingerprint, otherwise
+# each sync would change the fingerprint and force another rebuild.
+_VOLATILE_COLUMNS = ("ingestion_status", "ingestion_missing_fields")
 
 CORE_COLUMNS = (
     "id", "category", "name", "brand", "price", "mrp", "units_available",
@@ -116,6 +123,58 @@ def parse_attributes(value) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _clean_text(value) -> str:
+    """str() of a nullable text column, treating None/NaN as empty."""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return ""
+    return str(value).strip()
+
+
+def catalog_fingerprint(df: pd.DataFrame) -> str:
+    """Stable content hash of the catalog rows. Changes whenever a row is
+    added, removed or edited -- unlike a row count, which misses edits and
+    never matches when some rows are deliberately left out of the index."""
+    stable = df.drop(columns=[c for c in _VOLATILE_COLUMNS if c in df.columns])
+    stable = stable.reindex(sorted(stable.columns), axis=1)
+    if "id" in stable.columns:
+        stable = stable.sort_values("id", kind="stable")
+    payload = stable.to_json(orient="records", date_format="iso", default_handler=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _fingerprint_path(table_name: str) -> str:
+    return os.path.join(CHROMA_DIR, f"{table_name}.fingerprint")
+
+
+def _read_fingerprint(table_name: str) -> Optional[str]:
+    try:
+        with open(_fingerprint_path(table_name), encoding="utf-8") as fh:
+            return fh.read().strip() or None
+    except OSError:
+        return None
+
+
+def _write_fingerprint(table_name: str, fingerprint: str) -> None:
+    try:
+        os.makedirs(CHROMA_DIR, exist_ok=True)
+        with open(_fingerprint_path(table_name), "w", encoding="utf-8") as fh:
+            fh.write(fingerprint)
+    except OSError as exc:
+        logger.warning("Could not persist catalog fingerprint: %s", exc)
+
+
+def _document_ids(documents) -> Optional[list]:
+    """Stable Chroma ids (the MySQL primary key) so re-adding a product
+    replaces it instead of duplicating it. None if any document lacks one."""
+    ids = []
+    for doc in documents:
+        product_id = (getattr(doc, "metadata", None) or {}).get("id")
+        if product_id is None:
+            return None
+        ids.append(f"product-{product_id}")
+    return ids if len(set(ids)) == len(ids) else None
+
+
 @lru_cache(maxsize=1)
 def _get_embeddings():
     """Cache the embedding model so it's loaded once per process."""
@@ -127,8 +186,10 @@ def _get_embeddings():
 
 class DB_CONNECTOR:
     """Builds (or reuses) a single Chroma vector store backed by the
-    MySQL products table. Sync is by row count — if MySQL and Chroma
-    match, nothing is re-embedded; otherwise the collection is rebuilt."""
+    MySQL products table. Sync is by content fingerprint (see
+    catalog_fingerprint) — if the catalog is unchanged since the last
+    embedding pass, nothing is re-embedded; otherwise the collection is
+    rebuilt."""
 
     def __init__(self):
         self.engine = get_shared_engine()
@@ -174,26 +235,37 @@ class DB_CONNECTOR:
 
     def _sync_table(self, table_name, store, document_builder):
         df = pd.read_sql(f"SELECT * FROM {table_name}", self.engine)
+        fingerprint = catalog_fingerprint(df)
         existing_ids = store.get(include=[]).get("ids", [])
 
-        if len(existing_ids) == len(df):
+        # A row-count comparison used to decide this, which (a) never
+        # noticed edited rows and (b) never matched once any row was
+        # skipped as incomplete -- forcing a full re-embed (plus LLM
+        # normalization calls) on every single startup.
+        if existing_ids and _read_fingerprint(table_name) == fingerprint:
             logger.info(
-                "Chroma collection '%s' is in sync (%d vectors = %d rows)",
+                "Chroma collection '%s' is in sync (%d vectors, %d rows, catalog unchanged)",
                 table_name, len(existing_ids), len(df),
             )
             return
 
         if existing_ids:
             logger.info(
-                "%s: %d vectors vs %d rows — rebuilding collection",
+                "%s: catalog changed since last sync — rebuilding collection (%d vectors, %d rows)",
                 table_name, len(existing_ids), len(df),
             )
             store.delete(ids=existing_ids)
 
         documents = document_builder(df)
         if documents:
-            store.add_documents(documents)
+            ids = _document_ids(documents)
+            if ids:
+                store.add_documents(documents, ids=ids)
+            else:
+                store.add_documents(documents)
             logger.info("Embedded %d products into Chroma", len(documents))
+
+        _write_fingerprint(table_name, fingerprint)
 
     @staticmethod
     def _product_documents(df, on_incomplete=None):
@@ -240,23 +312,28 @@ class DB_CONNECTOR:
                     on_incomplete(record.get("id"), sorted(missing))
                 continue
 
+            # NULLs in numeric MySQL columns arrive from pandas as NaN --
+            # drop them like None rather than storing NaN (which would read
+            # back as e.g. "0 units, out of stock").
             metadata = {
                 key: value
                 for key, value in combined.items()
-                if value is not None and isinstance(value, (str, int, float, bool))
+                if value is not None
+                and isinstance(value, (str, int, float, bool))
+                and not (isinstance(value, float) and math.isnan(value))
             }
 
             name = record.get("name", "")
             brand = record.get("brand", "")
             price = record.get("price", "")
-            description = (record.get("description") or "").strip()
+            description = _clean_text(record.get("description"))
 
             spec_text = ", ".join(
                 f"{key}: {value}" for key, value in attributes.items()
                 if value not in (None, "")
             )
 
-            feedback = (record.get("customer_feedback") or "").strip()
+            feedback = _clean_text(record.get("customer_feedback"))
 
             page_content = f"{name} is a {brand} {category} priced at ₹{price}."
             if description:

@@ -43,15 +43,16 @@ describe('TopPicksPanel', () => {
 
   it('renders the why-this, key-features, why-suits-you and buy-now cards for a pick', () => {
     render(<TopPicksPanel product={{ top_picks: [pick()] }} />)
-    expect(screen.getByText('#1')).toBeInTheDocument()
-    expect(screen.getByText('HP Pavilion 15')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'HP Pavilion 15' })).toBeInTheDocument()
     expect(screen.getByText('Why this HP Pavilion 15?')).toBeInTheDocument()
     expect(screen.getByText('Great performance for the price.')).toBeInTheDocument()
     expect(screen.getByText('Why this suits you')).toBeInTheDocument()
     expect(screen.getByText('Matches your budget and use case.')).toBeInTheDocument()
-    expect(screen.getByText('Ryzen 7')).toBeInTheDocument()
-    expect(screen.getByText('16GB RAM')).toBeInTheDocument()
-    expect(screen.getByText('₹69,990')).toBeInTheDocument()
+    // key_features from the product agent are listed (not just raw specs).
+    const features = screen.getByRole('heading', { name: 'Key features' }).nextElementSibling
+    expect(within(features).getByText('Ryzen 7')).toBeInTheDocument()
+    expect(within(features).getByText('16GB RAM')).toBeInTheDocument()
+    expect(screen.getAllByText('₹69,990').length).toBeGreaterThan(0)
   })
 
   it('shows a discount badge and struck-through MRP when the catalog has one', () => {
@@ -60,15 +61,14 @@ describe('TopPicksPanel', () => {
         product={{ top_picks: [pick({ buy: { ...pick().buy, price: 69990, mrp: 99990, discount_percentage: 30 } })] }}
       />
     )
-    expect(screen.getByText('₹99,990')).toBeInTheDocument()
-    expect(screen.getByText('30% off')).toBeInTheDocument()
+    expect(screen.getAllByText('₹99,990')[0].tagName).toBe('DEL')
+    expect(screen.getByText('30% OFF')).toBeInTheDocument()
+    expect(screen.getByText('Save ₹30,000')).toBeInTheDocument()
   })
 
-  it('falls back to "Not available"/"Not tracked" when the catalog does not track a buy field', () => {
-    render(<TopPicksPanel product={{ top_picks: [pick()] }} />)
-    // "Not tracked" appears twice: units available, and stock status.
-    expect(screen.getAllByText('Not tracked')).toHaveLength(2)
-    expect(screen.getByText('Not available')).toBeInTheDocument() // offline availability
+  it('never invents availability when the catalog does not track a buy field', () => {
+    const { container } = render(<TopPicksPanel product={{ top_picks: [pick()] }} />)
+    expect(container.querySelector('.availability')).not.toBeInTheDocument()
     expect(screen.getByText('Online link not available')).toBeInTheDocument()
   })
 
@@ -76,11 +76,10 @@ describe('TopPicksPanel', () => {
     const { rerender } = render(
       <TopPicksPanel product={{ top_picks: [pick({ buy: { ...pick().buy, in_stock: true, units_available: 4 } })] }} />
     )
-    expect(screen.getByText('In stock')).toBeInTheDocument()
-    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(screen.getByText('4 units available')).toBeInTheDocument()
 
     rerender(
-      <TopPicksPanel product={{ top_picks: [pick({ buy: { ...pick().buy, in_stock: false, units_available: 0 } })] }} />
+      <TopPicksPanel product={{ top_picks: [pick({ buy: { ...pick().buy, in_stock: false, units_available: null } })] }} />
     )
     expect(screen.getByText('Out of stock')).toBeInTheDocument()
   })
@@ -124,15 +123,12 @@ describe('TopPicksPanel', () => {
     expect(within(table).getByText('Cheap & Powerful')).toBeInTheDocument()
     expect(within(table).getByText('Pricier & Weaker')).toBeInTheDocument()
 
-    const bestCells = container.querySelectorAll('.best-cell')
-    const worstCells = container.querySelectorAll('.worst-cell')
-    expect(bestCells.length).toBeGreaterThan(0)
-    expect(worstCells.length).toBeGreaterThan(0)
-
-    // Price: 50000 is lower (better) so it should be a best-cell, not worst.
-    const priceRow = screen.getByText('Price').closest('tr')
-    expect(priceRow.querySelector('.best-cell')).toHaveTextContent('₹50,000')
-    expect(priceRow.querySelector('.worst-cell')).toHaveTextContent('₹80,000')
+    // Price: 50000 is lower (better) so it's the best cell, 80000 the worst;
+    // RAM: 16GB beats 8GB.
+    const best = [...table.querySelectorAll('td.spec-best')].map((td) => td.textContent)
+    const worst = [...table.querySelectorAll('td.spec-worse')].map((td) => td.textContent)
+    expect(best).toEqual(expect.arrayContaining(['₹50,000', '16GB']))
+    expect(worst).toEqual(expect.arrayContaining(['₹80,000', '8GB']))
   })
 
   it('scrolls to a pick\'s own cards when its comparison header is clicked', async () => {
@@ -140,8 +136,10 @@ describe('TopPicksPanel', () => {
     const picks = [pick({ rank: 1, name: 'A' }), pick({ rank: 2, name: 'B' })]
     render(<TopPicksPanel product={{ top_picks: picks }} />)
 
-    await user.click(screen.getByRole('button', { name: 'A' }))
+    const table = document.querySelector('.top-picks-comparison')
+    await user.click(within(table).getByRole('button', { name: 'B' }))
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
+    expect(screen.getByRole('heading', { name: 'B' })).toBeInTheDocument()
   })
 
   it('renders one labeled section per category for a multi-category product', () => {

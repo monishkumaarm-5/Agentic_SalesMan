@@ -7,7 +7,8 @@
  *  - Explicit typing of each endpoint for discoverability
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
+// `||` rather than `??`: an empty build arg must fall back to the default too.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 const API_KEY = import.meta.env.VITE_API_KEY
 
 function buildHeaders() {
@@ -64,6 +65,11 @@ export async function sendMessage(question, threadId, signal) {
     body: JSON.stringify({ question, thread_id: threadId }),
     signal,
   })
+}
+
+export async function fetchHistory(threadId, signal) {
+  const data = await request(`/history/${encodeURIComponent(threadId)}`, { signal })
+  return Array.isArray(data) ? data : []
 }
 
 export async function getCompanyInfo(signal) {

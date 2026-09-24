@@ -9,7 +9,8 @@ export default defineConfig({
     // browser never has to worry about CORS or hardcoded hosts.
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        // Overridable so `python start.py --port 8080` keeps working.
+        target: process.env.API_PROXY_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },

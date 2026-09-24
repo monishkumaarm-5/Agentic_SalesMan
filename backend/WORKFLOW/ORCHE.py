@@ -50,6 +50,7 @@ import logging
 import os
 import re
 import sqlite3
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
@@ -133,7 +134,9 @@ def _merge_dict(base: Optional[dict], update: Optional[dict]) -> dict:
     entry instead of overwriting it."""
     merged = dict(base) if base else {}
     for key, value in (update or {}).items():
-        if value is _REMOVE:
+        # Compared by value, not identity: after a checkpoint round-trip
+        # the sentinel comes back as an equal but distinct string object.
+        if isinstance(value, str) and value == _REMOVE:
             merged.pop(key, None)
         else:
             merged[key] = value
@@ -205,12 +208,18 @@ _vector_store: Optional[DB_CONNECTOR] = None
 _graph = None
 _executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="agent-pipeline")
 _categories_cache = {"value": [], "fetched_at": 0.0}
+# Guards the lazy singletons below -- requests run on several executor
+# threads at once, and without this two concurrent first requests would
+# each build their own DB_CONNECTOR (double embedding sync) or graph.
+_init_lock = threading.Lock()
 
 
 def get_vector_store() -> DB_CONNECTOR:
     global _vector_store
     if _vector_store is None:
-        _vector_store = DB_CONNECTOR()
+        with _init_lock:
+            if _vector_store is None:
+                _vector_store = DB_CONNECTOR()
     return _vector_store
 
 
@@ -381,6 +390,43 @@ def _describe_top_picks(product_entry: Optional[dict]) -> str:
     return "\n".join(lines) if lines else "(no product currently shown)"
 
 
+# Score bump for a candidate stocked at a store in the customer's city.
+CITY_BOOST = 0.05
+
+
+def _store_name_variants(store_name: str, company_name: str = COMPANY_NAME) -> list:
+    """'Trein T Nagar' -> ['trein t nagar', 't nagar'] -- catalog rows
+    often drop the company prefix ("Available at Trein T Nagar,
+    Koramangala")."""
+    name = store_name.strip().lower()
+    variants = [name] if name else []
+    prefix = (company_name or "").strip().lower() + " "
+    if prefix.strip() and name.startswith(prefix) and len(name) > len(prefix):
+        variants.append(name[len(prefix):].strip())
+    return variants
+
+
+def _available_in_city(offline_availability, city: str) -> bool:
+    """True when a catalog row's free-text offline availability names the
+    city itself, or names one of config.STORE_LOCATIONS' stores in that
+    city. Whole store names are matched (not individual words -- the old
+    word-by-word check matched almost any text via one-letter tokens like
+    the "t" in "T Nagar")."""
+    offline = str(offline_availability or "").lower()
+    city = (city or "").strip().lower()
+    if not offline or not city:
+        return False
+    if re.search(rf"\b{re.escape(city)}\b", offline):
+        return True
+    for store in getattr(config, "STORE_LOCATIONS", None) or []:
+        if str(store.get("city", "")).strip().lower() != city:
+            continue
+        for variant in _store_name_variants(str(store.get("name", ""))):
+            if re.search(rf"\b{re.escape(variant)}\b", offline):
+                return True
+    return False
+
+
 def _log(agent: str, next_hop: str, **fields) -> dict:
     entry = {"agent": agent, "ts": round(time.time(), 3), "next": next_hop}
     entry.update(fields)
@@ -430,6 +476,9 @@ def guardrail_in(state: Graph_State):
     check = entry_check(question, known_categories)
 
     if not check["is_valid"]:
+        # These two paths end the turn here (no guardrail_out), so record
+        # the assistant's reply in `history` too -- otherwise
+        # /api/history shows the customer's message with no answer.
         return {
             "next": "decline",
             "answer": DECLINE_MESSAGE,
@@ -437,7 +486,10 @@ def guardrail_in(state: Graph_State):
             "clarification": False,
             "hops": 0,
             "logs": [_log("guardrail_in", "decline", reason=check["reason"])],
-            **history_update,
+            "history": [
+                {"role": "user", "content": question},
+                {"role": "assistant", "content": DECLINE_MESSAGE},
+            ],
         }
 
     active = list(state.get("active_categories") or [])
@@ -450,7 +502,10 @@ def guardrail_in(state: Graph_State):
             "clarification": False,
             "hops": 0,
             "logs": [_log("guardrail_in", "greeting")],
-            **history_update,
+            "history": [
+                {"role": "user", "content": question},
+                {"role": "assistant", "content": GREETING_MESSAGE},
+            ],
         }
 
     hints = check["category_hints"]
@@ -671,25 +726,22 @@ def product_expert_agent(state: Graph_State):
         )
         rag_data = format_candidates_for_prompt(cat_candidates)
 
-        # If customer specified a city, boost candidates available there
+        # If the customer named their city, nudge up candidates stocked
+        # at a store in that city.
         customer_city = (need.get("city") or "").strip().lower()
         if customer_city and cat_candidates:
+            boosted = False
             for cand in cat_candidates:
-                offline = str(cand.get("offline_availability") or "").lower()
-                if customer_city in offline or any(
-                    customer_city in str(s.get("city", "")).lower()
-                    for s in (getattr(config, "STORE_LOCATIONS", None) or [])
-                    if any(token in offline for token in str(s.get("name", "")).lower().split())
-                ):
-                    # Boost the overall score slightly for city match
-                    scores = cand.get("_scores", {})
-                    scores["overall"] = min(1.0, scores.get("overall", 0) + 0.05)
-            # Re-sort after city boost
-            cat_candidates.sort(
-                key=lambda c: c.get("_scores", {}).get("overall", 0.0),
-                reverse=True,
-            )
-            rag_data = format_candidates_for_prompt(cat_candidates)
+                if _available_in_city(cand.get("offline_availability"), customer_city):
+                    scores = cand.setdefault("_scores", {})
+                    scores["overall"] = round(min(1.0, scores.get("overall", 0.0) + CITY_BOOST), 4)
+                    boosted = True
+            if boosted:
+                cat_candidates.sort(
+                    key=lambda c: c.get("_scores", {}).get("overall", 0.0),
+                    reverse=True,
+                )
+                rag_data = format_candidates_for_prompt(cat_candidates)
 
         result = product_expert_recommend(
             question, category, product_noun,
@@ -836,8 +888,13 @@ def sales_consultant_agent(state: Graph_State):
     # empty answer showing as context="RECOMMENDATION".
     combined = _scrub_invented_purchase_prose(combined) or ""
 
-    lobby_update = _lobby_update(active, "assistant", combined)
-    lobby_update.setdefault(_GENERAL_LOBBY_KEY, [])
+    if hops == 1:
+        # Came straight from guardrail_in (a reaction to a pitch already
+        # shown), so no earlier node this turn recorded the customer's
+        # message in the lobby -- log both halves of the exchange here.
+        lobby_update = _lobby_exchange(active, question, combined)
+    else:
+        lobby_update = _lobby_update(active, "assistant", combined)
 
     return {
         "next": "guardrail_out",
@@ -874,6 +931,7 @@ def guardrail_out(state: Graph_State):
         update = {
             "answer": final_answer,
             "context": "DECLINE",
+            "clarification": False,
             "logs": [_log("guardrail_out", "end", passed=False, reason=check["reason"])],
         }
     else:
@@ -900,7 +958,13 @@ def get_graph():
     global _graph
     if _graph is not None:
         return _graph
+    with _init_lock:
+        if _graph is None:
+            _graph = _build_graph()
+    return _graph
 
+
+def _build_graph():
     builder = StateGraph(Graph_State)
 
     builder.add_node("guardrail_in", guardrail_in)
@@ -943,8 +1007,7 @@ def get_graph():
 
     builder.add_edge("guardrail_out", END)
 
-    _graph = builder.compile(checkpointer=_build_checkpointer())
-    return _graph
+    return builder.compile(checkpointer=_build_checkpointer())
 
 
 def _confidence_from(candidates: Optional[dict]) -> Optional[float]:
@@ -972,6 +1035,9 @@ def _shape_product_for_api(active: list, product: dict) -> Optional[dict]:
     return shown
 
 
+_NON_PRODUCT_CONTEXTS = {"DECLINE", "GREETING", "CHAT"}
+
+
 def _invoke(question: str, thread_id: str) -> dict:
     tracer = TraceBuilder(thread_id, question)
     graph = get_graph()
@@ -982,9 +1048,17 @@ def _invoke(question: str, thread_id: str) -> dict:
     )
 
     active = result.get("active_categories") or []
-    candidates = {cat: result["candidates"][cat] for cat in active if cat in (result.get("candidates") or {})} or None
-    product_data = _shape_product_for_api(active, result.get("product") or {})
     context = result.get("context", "CHAT")
+    if context in _NON_PRODUCT_CONTEXTS:
+        # Candidates/product persist in state across turns; don't attach a
+        # previous turn's shortlist (and its confidence) to a greeting,
+        # decline or small-talk reply.
+        candidates = None
+        product_data = None
+    else:
+        all_candidates = result.get("candidates") or {}
+        candidates = {cat: all_candidates[cat] for cat in active if cat in all_candidates} or None
+        product_data = _shape_product_for_api(active, result.get("product") or {})
 
     tracer.add(
         context=context,

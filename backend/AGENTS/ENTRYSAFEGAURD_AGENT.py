@@ -20,7 +20,7 @@ falling through to a decline or an off-topic chat reply is part of task
 from typing import List
 
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from AGENTS.llm import build_llm
 from pydantic import BaseModel, Field
 
 import config
@@ -90,7 +90,7 @@ class Result(BaseModel):
     wants_recommendation_but_unclear: bool = False
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
+llm = build_llm()
 bool_llm = llm.with_structured_output(Result)
 
 

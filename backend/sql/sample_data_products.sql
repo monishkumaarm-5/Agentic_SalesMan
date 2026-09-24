@@ -21,8 +21,8 @@
 --
 -- After it lands, run add_customer_feedback.sql to populate the
 -- customer_feedback column with review data, then restart the backend
--- once (or delete WORKFLOW/chroma_db/) so the row-count sync in
--- SQL_CONNECTOR.py notices the new rows and re-embeds them into Chroma.
+-- once so SQL_CONNECTOR.py's catalog-fingerprint sync notices the
+-- changed rows and re-embeds them into Chroma.
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS products (
@@ -39,8 +39,12 @@ CREATE TABLE IF NOT EXISTS products (
     description           VARCHAR(500) NULL,
     customer_feedback     TEXT NULL,
     attributes            JSON NULL,
+    -- Written back by the backend's catalog sync (see add_ingestion_status.sql).
+    ingestion_status          VARCHAR(20) NULL,
+    ingestion_missing_fields  JSON NULL,
     created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_products_category (category)
+    INDEX idx_products_category (category),
+    INDEX idx_products_ingestion_status (ingestion_status)
 );
 
 -- ---------------------------------------------------------------------

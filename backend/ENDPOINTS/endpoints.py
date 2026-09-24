@@ -25,9 +25,11 @@ auth_dep = Depends(require_api_key)
 
 
 class ChatRequest(BaseModel):
-    question: str = Field(..., min_length=1, description="Customer's message")
+    question: str = Field(..., min_length=1, max_length=4000, description="Customer's message")
     thread_id: Optional[str] = Field(
         default=None,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
         description=(
             "Conversation id used to keep chat history/context between "
             "calls. A new one is generated and returned if omitted."
@@ -113,7 +115,9 @@ class CompareRequest(BaseModel):
             "'Laptop', 'Refrigerator'."
         ),
     )
-    product_names: list[str] = Field(..., min_length=2, description="2+ exact product names")
+    product_names: list[str] = Field(
+        ..., min_length=2, max_length=10, description="2-10 exact product names"
+    )
 
 
 class CompareResponse(BaseModel):
@@ -191,8 +195,13 @@ def chat(payload: ChatRequest):
         logger.warning("Timeout in /api/chat thread_id=%s: %s", thread_id, exc)
         raise HTTPException(status_code=504, detail=str(exc)) from exc
     except Exception as exc:
+        # Log the details, but don't echo raw exception text (SQL errors,
+        # file paths, upstream API messages) back to the browser.
         logger.exception("Unhandled error in /api/chat thread_id=%s", thread_id)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=500,
+            detail="Sorry, something went wrong while answering. Please try again.",
+        ) from exc
 
     response = ChatResponse(
         answer=result["answer"],
@@ -239,7 +248,9 @@ def compare(payload: CompareRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Unhandled error in /api/compare")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=500, detail="Could not compare these products right now."
+        ) from exc
 
     logger.info(
         "POST /api/compare category=%s differing_fields=%s missing=%s",

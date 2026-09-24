@@ -2,14 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2]
   pull_request:
-    branches: [main]
 
 jobs:
   backend:
     name: Backend (pytest)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
@@ -18,15 +20,16 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
       - name: Run tests
-        run: pytest -v
+        run: pytest -q
         env:
-          # conftest.py also sets safe defaults for these, but setting them
-          # here too keeps CI explicit and independent of that fallback.
+          # conftest.py also sets safe defaults for these; tests never make
+          # real LLM or database calls.
           GOOGLE_API_KEY: test-placeholder-key
           DB_USERNAME: test
           DB_PASSWORD: test
@@ -34,7 +37,7 @@ jobs:
           DB_NAME: test
 
   frontend:
-    name: Frontend (lint, build, test)
+    name: Frontend (lint, test, build)
     runs-on: ubuntu-latest
     defaults:
       run:

@@ -36,6 +36,8 @@ backend/WORKFLOW/chroma_db/
 # ─── SQLite databases ─────────────────────────────────────
 *.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
 
 # ─── OS ────────────────────────────────────────────────────
 .DS_Store
@@ -46,9 +48,9 @@ desktop.ini
 *.log
 
 # ─── Frontend ──────────────────────────────────────────────
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
+FRONTEND/node_modules/
+FRONTEND/dist/
+FRONTEND/.vite/
 
 # ─── Docker ────────────────────────────────────────────────
 docker-compose.override.yml

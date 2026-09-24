@@ -31,7 +31,7 @@ import logging
 from typing import Optional
 
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from AGENTS.llm import build_llm
 from pydantic import BaseModel
 
 logger = logging.getLogger("agentic_salesman.sales_consultant")
@@ -115,7 +115,7 @@ class SalesConsultantReply(BaseModel):
     detected_brand: Optional[str] = None
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
+llm = build_llm()
 structured_llm = llm.with_structured_output(SalesConsultantReply)
 
 _VALID_NEXT = {"done", "product_expert", "business_need"}
