@@ -74,8 +74,8 @@ class Settings(BaseSettings):
     # --- Diagnostics ---
     # Log every workflow node: input state, agent used, output, timing.
     log_graph_state: bool = True
-    # Also log full LLM prompts and raw structured outputs (very verbose).
-    log_llm_prompts: bool = False
+    # Also log full LLM prompts and raw structured outputs (verbose).
+    log_llm_prompts: bool = True
 
     # --- Company identity ---
     company_name: str = "Trein"
