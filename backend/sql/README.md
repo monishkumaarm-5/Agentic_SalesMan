@@ -1,20 +1,25 @@
-# SQL Files
+# SQL
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `sample_data_products.sql` | **Start here.** Creates the `products` table and inserts ~96 products across 12 categories (Mobile, Laptop, TV, Headphone, etc.) with JSON attributes. |
-| `sample_queries.sql` | Ready-to-run queries for browsing, filtering, price analysis, stock checks, and JSON attribute lookups — useful for debugging and exploration. |
-| `sample_data_300.sql` | Legacy: 300 rows across the old `phone`/`laptop`/`headphone` tables. Only needed if you want to test the migration script. |
-| `sample_data_300_batch2.sql` | Legacy: Second batch of 300 rows for the old tables. |
-| `migrate_to_products_table.sql` | Migrates rows from the old per-category tables into the unified `products` table. Run after both `sample_data_300*.sql` files. |
-| `fix_column_widths.sql` | One-time column width adjustments for the old tables. |
-
-## Quick Start
+| `seed/01_products.sql` | **Start here.** Creates the `products` table and seeds 96 products across 12 categories (specs in a JSON `attributes` column). |
+| `seed/02_customer_feedback.sql` | Adds customer review text to the seeded products (the assistant quotes reviews when relevant). |
+| `migrations/add_ingestion_status.sql` | Adds the `ingestion_status` columns to an existing `products` table created before they existed. Safe to re-run. |
+| `queries.sql` | Handy queries for exploring the catalog. |
+| `legacy/` | Old per-category tables (`phone`/`laptop`/`headphone`) and the script that migrates them into `products`. Only for upgrading very old installs. |
 
 ```bash
-# 1. Create the products table and seed it
-mysql -u root -p retail_shop < sql/sample_data_products.sql
-
-# 2. (Optional) Explore with sample queries
-mysql -u root -p retail_shop < sql/sample_queries.sql
+mysql -u <user> -p <db_name> < sql/seed/01_products.sql
+mysql -u <user> -p <db_name> < sql/seed/02_customer_feedback.sql
 ```
+
+Docker Compose runs both seed files automatically on the first start.
+
+## Adding products
+
+Insert rows into `products`; put category-specific specs into `attributes`
+as JSON. New categories need no code changes. The backend notices catalog
+changes on its next start and re-indexes. A product is indexed as long as
+it has a name, category and price; specs that most products in its category
+have but it lacks are filled from its description when possible, and the
+row is marked `ingestion_status = 'partial'`.

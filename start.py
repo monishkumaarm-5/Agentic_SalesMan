@@ -22,7 +22,7 @@ import time
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.join(ROOT_DIR, "backend")
-FRONTEND_DIR = os.path.join(ROOT_DIR, "FRONTEND")
+FRONTEND_DIR = os.path.join(ROOT_DIR, "frontend")
 
 # Colors for terminal output
 IS_WINDOWS = platform.system() == "Windows"
@@ -88,7 +88,7 @@ def start_backend(port=8000):
 
     cmd = [
         sys.executable, "-m", "uvicorn",
-        "APP.main:app",
+        "app.main:app",
         "--host", "0.0.0.0",
         "--port", str(port),
         "--reload",

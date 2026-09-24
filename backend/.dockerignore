@@ -2,14 +2,12 @@
 .env
 .env.*
 !.env.example
-config.py
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ruff_cache/
 .venv/
 venv/
-WORKFLOW/chroma_db/
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
+var/
 tests/
+airflow/

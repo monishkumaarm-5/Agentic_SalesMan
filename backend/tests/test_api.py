@@ -1,270 +1,135 @@
-from unittest.mock import patch
+import json
 
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from langgraph.checkpoint.memory import InMemorySaver
 
-from APP.main import app
-
-client = TestClient(app)
-
-
-def test_health_reports_ok_when_everything_configured(monkeypatch):
-    monkeypatch.setattr("ENDPOINTS.endpoints.config.GOOGLE_API_KEY", "real-key")
-    monkeypatch.setattr("ENDPOINTS.endpoints.config.DB_PASSWORD", "real-password")
-    with patch("ENDPOINTS.endpoints.check_mysql_connectivity", return_value=None):
-        resp = client.get("/api/health")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["status"] == "ok"
-    assert body["checks"]["database_reachable"] is True
+from app.api.security import RateLimitMiddleware
+from app.core.config import get_settings
+from app.graph.builder import build_graph
+from app.main import create_app
+from app.services.chat import ChatService, build_response
+from app.services.tracing import TraceStore
+from tests.conftest import OVERVIEW, understanding
 
 
-def test_health_reports_degraded_and_never_raises(monkeypatch):
-    monkeypatch.setattr("ENDPOINTS.endpoints.config.GOOGLE_API_KEY", "your-google-api-key-here")
-    with patch("ENDPOINTS.endpoints.check_mysql_connectivity", side_effect=RuntimeError("no db")):
-        resp = client.get("/api/health")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["status"] == "degraded"
-    assert body["checks"]["database_reachable"] is False
-    assert "database_error" in body["checks"]
+@pytest.fixture
+def service(toolkit, tmp_path):
+    settings = get_settings()
+    return ChatService(build_graph(toolkit, settings, InMemorySaver()), settings, TraceStore(tmp_path / "t.sqlite"))
 
 
-def test_health_does_not_require_an_api_key(monkeypatch):
-    monkeypatch.setattr("APP.auth.config.API_KEY", "secret")
-    with patch("ENDPOINTS.endpoints.check_mysql_connectivity", return_value=None):
-        resp = client.get("/api/health")
-    assert resp.status_code == 200
+@pytest.fixture
+def client(service, monkeypatch):
+    monkeypatch.setattr("app.catalog.database.category_overview", lambda force=False: OVERVIEW)
+    with TestClient(create_app(service=service, traces=service.traces)) as c:
+        yield c
 
 
-def test_chat_returns_the_agent_response():
-    with patch(
-        "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "RECOMMENDATION", "product": None},
-    ):
-        resp = client.post("/api/chat", json={"question": "recommend a phone"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["answer"] == "hi"
-    assert body["context"] == "RECOMMENDATION"
-    assert "thread_id" in body
+def test_chat_returns_a_full_response(client):
+    body = client.post("/api/chat", json={"message": "phones under 30k"}).json()
+    assert body["response_type"] == "recommendation"
+    assert body["thread_id"]
+    pick = body["recommendations"][0]["picks"][0]
+    assert pick["name"] == "Redmi Note 14" and pick["specs"]
+    assert body["suggestions"] == ["Compare the top two"]
+    assert body["profile"]["categories"] == ["Mobile"]
+    assert 0 < body["confidence"] <= 1
 
 
-def test_chat_reuses_the_given_thread_id():
-    with patch(
-        "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "RECOMMENDATION", "product": None},
-    ) as mock_ask:
-        resp = client.post("/api/chat", json={"question": "recommend a phone", "thread_id": "abc"})
-    assert resp.json()["thread_id"] == "abc"
-    mock_ask.assert_called_once_with("recommend a phone", thread_id="abc")
+def test_chat_keeps_the_thread(client):
+    first = client.post("/api/chat", json={"message": "phones", "thread_id": "abc-1"}).json()
+    assert first["thread_id"] == "abc-1"
+    history = client.get("/api/threads/abc-1/history").json()
+    assert [t["role"] for t in history] == ["user", "assistant"]
 
 
-def test_chat_surfaces_product_data():
-    product = {"top_picks": [{"rank": 1, "name": "iPhone 14"}]}
-    with patch(
-        "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "RECOMMENDATION", "product": product},
-    ):
-        resp = client.post("/api/chat", json={"question": "recommend a phone"})
-    assert resp.json()["product"] == product
+def test_chat_validation(client):
+    assert client.post("/api/chat", json={"message": ""}).status_code == 422
+    assert client.post("/api/chat", json={"message": "hi", "thread_id": "bad id!"}).status_code == 422
 
 
-def test_chat_surfaces_the_response_type():
-    with patch(
-        "ENDPOINTS.endpoints.ask",
-        return_value={
-            "answer": "What's your budget?",
-            "context": "RECOMMENDATION",
-            "response_type": "clarification",
-            "product": None,
-        },
-    ):
-        resp = client.post("/api/chat", json={"question": "I want a phone"})
-    assert resp.json()["response_type"] == "clarification"
+def test_stream_emits_status_then_final(client):
+    with client.stream("POST", "/api/chat/stream", json={"message": "phones"}) as resp:
+        assert resp.headers["content-type"].startswith("text/event-stream")
+        raw = "".join(resp.iter_text())
+    events = [
+        (block.split("\n")[0][7:], json.loads(block.split("\n")[1][6:]))
+        for block in raw.strip().split("\n\n") if block.startswith("event:")
+    ]
+    kinds = [k for k, _ in events]
+    assert kinds[0] == "start" and kinds[-1] == "final"
+    steps = [d["step"] for k, d in events if k == "status"]
+    assert steps == ["understand", "retrieve", "recommend"]
+    assert events[-1][1]["response_type"] == "recommendation"
 
 
-def test_chat_defaults_response_type_to_normal_when_omitted():
-    with patch(
-        "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "GREETING", "product": None},
-    ):
-        resp = client.post("/api/chat", json={"question": "hi"})
-    assert resp.json()["response_type"] == "normal"
+def test_traces_record_decisions(client):
+    client.post("/api/chat", json={"message": "phones", "thread_id": "tr-1"})
+    [trace] = client.get("/api/traces", params={"thread_id": "tr-1"}).json()
+    assert trace["action"] == "recommend"
+    assert trace["candidates"]["Mobile"][0]["name"]
+    assert [s["step"] for s in trace["steps"]] == ["understand", "retrieve", "recommend"]
 
 
-def test_chat_times_out_as_504():
-    with patch("ENDPOINTS.endpoints.ask", side_effect=TimeoutError("too slow")):
-        resp = client.post("/api/chat", json={"question": "recommend a phone"})
-    assert resp.status_code == 504
+def test_store_endpoints(client):
+    assert client.get("/api/categories").json()[1]["name"] == "Mobile"
+    company = client.get("/api/company").json()
+    assert company["name"] == "Trein" and len(company["stores"]) == 3
 
 
-def test_chat_requires_api_key_when_configured(monkeypatch):
-    monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
-    with patch(
-        "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "RECOMMENDATION", "product": None},
-    ):
-        resp = client.post("/api/chat", json={"question": "hi"})
-    assert resp.status_code == 401
+def test_health_never_fails(client, monkeypatch):
+    def down(*a, **k):
+        raise RuntimeError("no db")
+    monkeypatch.setattr("app.catalog.database.check_connectivity", down)
+    body = client.get("/api/health").json()
+    assert body["status"] == "degraded" and body["checks"]["database"] is False
 
 
-def test_chat_accepts_the_correct_api_key(monkeypatch):
-    monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
-    with patch(
-        "ENDPOINTS.endpoints.ask",
-        return_value={"answer": "hi", "context": "RECOMMENDATION", "product": None},
-    ):
-        resp = client.post(
-            "/api/chat", json={"question": "hi"}, headers={"X-API-Key": "secret123"}
-        )
-    assert resp.status_code == 200
+def test_api_key(client, monkeypatch):
+    monkeypatch.setattr(get_settings(), "api_key", "s3cret")
+    assert client.post("/api/chat", json={"message": "hi"}).status_code == 401
+    ok = client.post("/api/chat", json={"message": "hi"}, headers={"X-API-Key": "s3cret"})
+    assert ok.status_code == 200
+    assert client.get("/api/health").status_code == 200  # never needs a key
 
 
-def test_history_endpoint_returns_turns():
-    with patch("ENDPOINTS.endpoints.get_history", return_value=[{"role": "user", "content": "hi"}]):
-        resp = client.get("/api/history/abc")
-    assert resp.status_code == 200
-    assert resp.json() == [{"role": "user", "content": "hi"}]
+def test_errors_do_not_leak_details(client, service, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("SELECT * FROM secret_table")
+    monkeypatch.setattr(service, "ask", boom)
+    resp = client.post("/api/chat", json={"message": "hi"})
+    assert resp.status_code == 500 and "secret" not in resp.text
 
 
-def test_chat_surfaces_candidates_and_confidence():
-    candidates = {"Mobile": [{"name": "Pixel 9", "_scores": {"overall": 0.9}}]}
-    with patch(
-        "ENDPOINTS.endpoints.ask",
-        return_value={
-            "answer": "hi",
-            "context": "RECOMMENDATION",
-            "product": None,
-            "candidates": candidates,
-            "confidence": 0.9,
-        },
-    ):
-        resp = client.post("/api/chat", json={"question": "recommend a phone"})
-    body = resp.json()
-    assert body["candidates"] == candidates
-    assert body["confidence"] == 0.9
+def test_rate_limit_exempts_health():
+    app = FastAPI()
+    app.add_middleware(RateLimitMiddleware, requests_per_minute=2)
+    app.get("/api/health")(lambda: {"ok": True})
+    app.get("/api/x")(lambda: {"ok": True})
+    c = TestClient(app)
+    assert [c.get("/api/x").status_code for _ in range(3)] == [200, 200, 429]
+    assert all(c.get("/api/health").status_code == 200 for _ in range(5))
 
 
-def test_compare_returns_the_comparison():
-    comparison = {
-        "category": "laptop",
-        "products": {"A": {"price": 1}, "B": {"price": 2}},
-        "differing_fields": ["price"],
-        "missing": [],
-    }
-    with patch("ENDPOINTS.endpoints.compare_products", return_value=comparison):
-        resp = client.post(
-            "/api/compare", json={"category": "laptop", "product_names": ["A", "B"]}
-        )
-    assert resp.status_code == 200
-    assert resp.json() == comparison
+def test_build_response_handles_empty_state():
+    body = build_response("t", {})
+    assert body["answer"] == "" and body["recommendations"] == [] and body["confidence"] is None
 
 
-def test_compare_rejects_a_single_product_name():
-    resp = client.post("/api/compare", json={"category": "laptop", "product_names": ["A"]})
-    assert resp.status_code == 422  # Pydantic min_length violation
+def test_greeting_through_the_api(client, agents):
+    agents.next_understanding = understanding(action="reply", reply="Hello!", categories=[])
+    body = client.post("/api/chat", json={"message": "hi"}).json()
+    assert body["answer"] == "Hello!" and body["response_type"] == "message"
 
 
-def test_compare_returns_400_when_products_are_not_found():
-    from TOOLS.product_tools import ProductToolError
-
-    with patch(
-        "ENDPOINTS.endpoints.compare_products",
-        side_effect=ProductToolError("could only find 1 of 2 products"),
-    ):
-        resp = client.post(
-            "/api/compare", json={"category": "laptop", "product_names": ["A", "B"]}
-        )
-    assert resp.status_code == 400
-
-
-def test_compare_requires_api_key_when_configured(monkeypatch):
-    monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
-    resp = client.post("/api/compare", json={"category": "laptop", "product_names": ["A", "B"]})
-    assert resp.status_code == 401
-
-
-def test_compare_works_for_any_catalog_category_not_just_the_old_three():
-    # Categories are data-driven now (see DATABASE/SQL_CONNECTOR.py) --
-    # /api/compare has never validated `category` against a fixed enum, it
-    # just passes it through to compare_products, so a category like
-    # "Refrigerator" needs no endpoint change to work.
-    comparison = {
-        "category": "Refrigerator",
-        "products": {"A": {"capacity": "200L"}, "B": {"capacity": "300L"}},
-        "differing_fields": ["capacity"],
-        "missing": [],
-    }
-    with patch("ENDPOINTS.endpoints.compare_products", return_value=comparison) as mock_fn:
-        resp = client.post(
-            "/api/compare", json={"category": "Refrigerator", "product_names": ["A", "B"]}
-        )
-    assert resp.status_code == 200
-    mock_fn.assert_called_once_with("Refrigerator", ["A", "B"])
-
-
-def test_traces_endpoint_returns_the_log():
-    fake_traces = [{"thread_id": "abc", "question": "hi", "latency_ms": 12.3}]
-    with patch("ENDPOINTS.endpoints.get_traces", return_value=fake_traces) as mock_get:
-        resp = client.get("/api/traces?thread_id=abc&limit=5")
-    assert resp.status_code == 200
-    assert resp.json() == fake_traces
-    mock_get.assert_called_once_with(thread_id="abc", limit=5)
-
-
-def test_traces_requires_api_key_when_configured(monkeypatch):
-    monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
-    resp = client.get("/api/traces")
-    assert resp.status_code == 401
-
-
-# ---------------------------------------------------------------------------
-# /api/company and /api/categories -- task 1.3 ("show the local store and
-# company website") and task 2 (data-driven categories, no hardcoded list)
-# ---------------------------------------------------------------------------
-def test_company_endpoint_returns_info_with_store_locations():
-    fake_info = {
-        "name": "Trein",
-        "tagline": "Every home, every device -- one store.",
-        "website": "https://www.trein.example.com",
-        "support_phone": "1800-000-0000",
-        "store_count": 3,
-    }
-    fake_stores = [{"name": "Trein T Nagar", "city": "Chennai"}]
-    with patch("ENDPOINTS.endpoints.get_company_info", return_value=dict(fake_info)) as mock_info, patch(
-        "ENDPOINTS.endpoints.list_store_locations", return_value=fake_stores
-    ) as mock_stores:
-        resp = client.get("/api/company")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["name"] == "Trein"
-    assert body["stores"] == fake_stores
-    mock_info.assert_called_once_with()
-    mock_stores.assert_called_once_with()
-
-
-def test_company_endpoint_does_not_require_an_api_key(monkeypatch):
-    monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
-    with patch("ENDPOINTS.endpoints.get_company_info", return_value={"name": "Trein"}), patch(
-        "ENDPOINTS.endpoints.list_store_locations", return_value=[]
-    ):
-        resp = client.get("/api/company")
-    assert resp.status_code == 200
-
-
-def test_categories_endpoint_returns_the_live_category_list():
-    with patch(
-        "ENDPOINTS.endpoints.list_categories",
-        return_value=["Mobile", "Laptop", "Refrigerator"],
-    ) as mock_fn:
-        resp = client.get("/api/categories")
-    assert resp.status_code == 200
-    assert resp.json() == {"categories": ["Mobile", "Laptop", "Refrigerator"]}
-    mock_fn.assert_called_once_with()
-
-
-def test_categories_endpoint_does_not_require_an_api_key(monkeypatch):
-    monkeypatch.setattr("APP.auth.config.API_KEY", "secret123")
-    with patch("ENDPOINTS.endpoints.list_categories", return_value=[]):
-        resp = client.get("/api/categories")
-    assert resp.status_code == 200
+def test_busy_thread_is_reported(service):
+    lock = service._thread_lock("busy")
+    lock.acquire()
+    try:
+        service.settings = service.settings.model_copy(update={"request_timeout_seconds": 1})
+        events = list(service.stream("phones", "busy"))
+    finally:
+        lock.release()
+    assert events[-1]["type"] == "error"

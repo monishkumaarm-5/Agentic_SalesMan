@@ -1,35 +1,25 @@
-# Direct dependencies, pinned to the minor versions this project is tested
-# against. Upgrading across a major version has already broken the build
-# once (mcp 2.x removed FastMCP), so bump these deliberately.
+# Runtime dependencies, pinned to the versions this project is tested with.
 
-# --- Backend API ---
+# --- API ---
 fastapi>=0.141,<1
 uvicorn[standard]>=0.53,<1
 pydantic>=2.13,<3
-python-dotenv>=1.2,<2
+pydantic-settings>=2.15,<3
 
-# --- Database / vector store ---
+# --- Catalog / search ---
 sqlalchemy>=2.0.54,<2.1
 pymysql>=1.2,<2
 pandas>=3.0,<4
 langchain-chroma>=1.1,<2
 langchain-huggingface>=1.2,<2
+# Local embedding model runtime (pulls in torch; the Dockerfile installs the CPU build).
+sentence-transformers>=3,<7
 
-# --- LLM / orchestration ---
-langchain>=1.4,<2
+# --- Agents / workflow ---
 langchain-core>=1.6,<2
 langchain-google-genai>=4.4,<5
 langgraph>=1.2,<2
 langgraph-checkpoint-sqlite>=3.1,<4
 
-# --- Legacy CrewAI pipeline (WORKFLOW/ORCHE_crewai_legacy.py,
-# AGENTS/SALES_CREW_FACTORY.py). Not used by the live API. ---
-crewai>=0.193,<0.194
-
-# --- MCP (Model Context Protocol) ---
-# Backs MCP/server.py. mcp 2.x renamed FastMCP -> MCPServer.
+# --- MCP server (mcp 2.x renamed FastMCP) ---
 mcp>=1.30,<2
-
-# --- Testing ---
-pytest>=9.1,<10
-httpx>=0.28,<1

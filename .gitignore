@@ -1,5 +1,4 @@
 # ─── Secrets / local config ────────────────────────────────
-backend/config.py
 backend/.env
 backend/.env.local
 .env
@@ -31,7 +30,7 @@ ENV/
 *~
 
 # ─── Vector DB / generated data ────────────────────────────
-backend/WORKFLOW/chroma_db/
+backend/var/
 
 # ─── SQLite databases ─────────────────────────────────────
 *.sqlite
@@ -48,9 +47,9 @@ desktop.ini
 *.log
 
 # ─── Frontend ──────────────────────────────────────────────
-FRONTEND/node_modules/
-FRONTEND/dist/
-FRONTEND/.vite/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
 
 # ─── Docker ────────────────────────────────────────────────
 docker-compose.override.yml
